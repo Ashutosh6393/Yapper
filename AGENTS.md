@@ -17,6 +17,7 @@ Core user features:
 Architecture is a 3-app Turborepo (`web`, `api`, `socket`) plus shared `packages`. See `architecture.html` for diagrams.
 
 ### Always do
+- Always create a new branch name feat/{featureName} before implementing any spec
 - Before implementing a spec write a test case for a goal state use /tdd skill
 - Mark a spec as completed/ done only when the goal state is reached
 
