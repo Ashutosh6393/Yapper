@@ -4,7 +4,7 @@ This folder contains design documents for features in development. Claude reads 
 
 ## How It Works
 
-1. **Before implementing a feature**, create a spec folder with design docs
+1. **Before implementing a feature**, create a spec folder with design docs also a new branch feat/{featureName}
 2. **Claude reads the design** before writing any code
 3. **Progress is tracked** in implementation.md for session continuity
 4. **Decisions are recorded** in decisions.md for future reference

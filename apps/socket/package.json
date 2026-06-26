@@ -9,7 +9,8 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@hocuspocus/server": "^2.15.2"
+    "@hocuspocus/server": "^2.15.2",
+    "@yapper/db": "workspace:*"
   },
   "devDependencies": {
     "@yapper/typescript-config": "workspace:*",
