@@ -28,3 +28,30 @@ Slice 01 created note tables with `owner_id`/`user_id` but deferred the FK to `u
 Generate Better Auth tables via its CLI into `@yapper/db`; add FK constraints from note tables to `user.id`.
 ### Consequences
 - Auth schema is generated (not hand-written); a follow-up migration adds the FKs.
+- Better Auth ids must be `uuid` to FK against `note.owner_id` (uuid). Set
+  `advanced.database.generateId: false` so Postgres assigns ids via `gen_random_uuid()`; the
+  auth tables use `uuid` PKs (matching Better Auth's pg-uuid CLI shape).
+
+## ADR-004: `verifyJwt` is algorithm-agnostic (Better Auth issues EdDSA, not RS256)
+### Context
+ADR-002 assumed RS256. Better Auth's `jwt()` plugin (v1.6) signs with **EdDSA/Ed25519** by default,
+and the JWKS endpoint advertises an `OKP`/`Ed25519` key.
+### Decision
+`verifyJwt` does not pin an algorithm: `jwtVerify` resolves the signing key from the JWKS by `kid`
+and verifies with the token's own `alg`. It validates `iss`/`aud`/`exp` and returns `sub` as `userId`.
+### Consequences
+- Works with the real EdDSA tokens (and any future alg change) without code edits. The unit test signs
+  with Ed25519 to mirror production. No need to force RS256 in the plugin config.
+
+## ADR-005: `/dashboard` guard is client-side (cross-origin session cookie)
+### Context
+The session cookie is set by `api` (`localhost:4000`); `web` is a different origin (`localhost:3000`).
+A Next.js server component / middleware on `web` cannot read `api`'s cookie, so a server-side guard
+can't see the session without a first-party proxy (out of scope for this slice).
+### Decision
+Gate `/dashboard` on the client with `useSession` (which calls `api` with credentials); redirect to
+`/login` when logged out. This deviates from the design's "server-side guard" wording.
+### Consequences
+- Satisfies the acceptance (logged-out → `/login`, logged-in → renders). A brief "Loading…" flash
+  occurs while the session resolves. A server-side guard would require proxying auth through `web`
+  (revisit if SSR-gated routes are needed later).
