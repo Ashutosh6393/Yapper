@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Bash|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "statusMessage": "Checking for .env access",
+            "command": "in=$(cat); fields=$(printf '%s' \"$in\" | grep -oiE '\"(file_path|command|path)\"[[:space:]]*:[[:space:]]*\"([^\"\\\\]|\\\\.)*\"'); if printf '%s' \"$fields\" | grep -qiP '\\.env($|[^A-Za-z0-9_.])|\\.env\\.(?!(?:example|sample|template)\\b)'; then printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Reading .env files is blocked by a project policy hook in .claude/settings.json (.env.example/.sample/.template are allowed). Ask the user for the specific value you need.\"}}'; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

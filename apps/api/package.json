@@ -10,6 +10,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@yapper/db": "workspace:*",
     "cors": "^2.8.5",
     "express": "^4.21.2"
   },
