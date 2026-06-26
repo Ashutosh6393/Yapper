@@ -1,4 +1,5 @@
 import {
+  boolean,
   customType,
   index,
   pgEnum,
@@ -8,6 +9,86 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+
+/*
+ * ── Better Auth tables (slice 02) ──────────────────────────────────────────
+ * Generated to match Better Auth's pg-uuid schema. `id` columns are `uuid` with a
+ * DB default (`gen_random_uuid()`); Better Auth is configured with
+ * `advanced.database.generateId: false` so Postgres assigns ids. This keeps `user.id`
+ * type-compatible with `note.owner_id` / `note_collaborator.user_id` so FKs can be added.
+ * Field (JS) names must stay camelCase — Better Auth's Drizzle adapter maps models by them.
+ */
+
+export const user = pgTable("user", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const session = pgTable(
+  "session",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    expiresAt: timestamp("expires_at").notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("session_user_id_idx").on(table.userId)],
+);
+
+export const account = pgTable(
+  "account",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at"),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [index("account_user_id_idx").on(table.userId)],
+);
+
+export const verification = pgTable(
+  "verification",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [index("verification_identifier_idx").on(table.identifier)],
+);
+
+/** Asymmetric signing keys for the JWT plugin; the JWKS endpoint serves the public half. */
+export const jwks = pgTable("jwks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  publicKey: text("public_key").notNull(),
+  privateKey: text("private_key").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
+});
 
 /**
  * Postgres `bytea` column. Drizzle has no native bytea helper, so we map it to a
@@ -35,7 +116,9 @@ export const note = pgTable(
   "note",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    ownerId: uuid("owner_id").notNull(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull().default("Untitled"),
     preview: text("preview").notNull().default(""),
     access: noteAccess("access").notNull().default("private"),
@@ -71,7 +154,9 @@ export const noteCollaborator = pgTable(
     noteId: uuid("note_id")
       .notNull()
       .references(() => note.id, { onDelete: "cascade" }),
-    userId: uuid("user_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     status: collabStatus("status").notNull().default("active"),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
     lastAccess: timestamp("last_access", { withTimezone: true }).notNull().defaultNow(),
@@ -88,3 +173,6 @@ export type NoteDoc = typeof noteDoc.$inferSelect;
 export type NewNoteDoc = typeof noteDoc.$inferInsert;
 export type NoteCollaborator = typeof noteCollaborator.$inferSelect;
 export type NewNoteCollaborator = typeof noteCollaborator.$inferInsert;
+export type User = typeof user.$inferSelect;
+export type NewUser = typeof user.$inferInsert;
+export type Session = typeof session.$inferSelect;
