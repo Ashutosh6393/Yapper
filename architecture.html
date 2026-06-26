@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Yapper — Architecture Design Doc</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-elev: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a3340;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --accent: #6ea8fe;
+    --accent-2: #7ee2c4;
+    --accent-3: #c8a6ff;
+    --warn: #ffb86c;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 600px at 80% -10%, #1b2433 0%, var(--bg) 55%) fixed;
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    font-size: 16px;
+  }
+
+  /* ---- Top sticky nav ---- */
+  header.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(10px);
+    background: rgba(14,17,22,0.82);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .brand {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+  }
+  .brand .dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 14px var(--accent);
+  }
+  .brand small { color: var(--text-dim); font-weight: 500; font-size: 12px; }
+  nav.toc {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+  nav.toc a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 5px 10px;
+    border-radius: 7px;
+    transition: all .15s ease;
+    white-space: nowrap;
+  }
+  nav.toc a:hover { color: var(--text); background: var(--bg-card); }
+
+  /* ---- Layout ---- */
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  .hero {
+    margin-bottom: 36px;
+  }
+  .hero h1 {
+    font-size: 42px;
+    line-height: 1.1;
+    margin: 0 0 12px;
+    letter-spacing: -0.03em;
+    background: linear-gradient(120deg, #fff 10%, var(--accent) 60%, var(--accent-3) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero p.lede {
+    font-size: 18px;
+    color: var(--text-dim);
+    max-width: 760px;
+    margin: 0 0 18px;
+  }
+  .pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    color: var(--accent-2);
+  }
+
+  section.card {
+    background: linear-gradient(180deg, var(--bg-card), var(--bg-elev));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 30px;
+    margin: 26px 0;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  }
+  section.card > h2 {
+    margin-top: 0;
+    font-size: 26px;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  section.card > h2 .num {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px 8px;
+    background: var(--bg);
+  }
+  h3 { font-size: 18px; margin: 26px 0 8px; color: var(--text); }
+  p { margin: 10px 0; }
+  .muted { color: var(--text-dim); }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: #0b0e13;
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 6px;
+    color: var(--accent-2);
+  }
+
+  ul.tight { margin: 10px 0; padding-left: 22px; }
+  ul.tight li { margin: 5px 0; }
+  ul.tight li strong { color: var(--text); }
+
+  .note {
+    border-left: 3px solid var(--accent);
+    background: rgba(110,168,254,0.07);
+    padding: 10px 16px;
+    border-radius: 0 10px 10px 0;
+    margin: 16px 0;
+    color: var(--text-dim);
+    font-size: 14.5px;
+  }
+  .note strong { color: var(--accent); }
+
+  /* ---- Diagram frame ---- */
+  .diagram {
+    background: #0b0e13;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    margin: 18px 0 6px;
+    overflow-x: auto;
+  }
+  .mermaid { text-align: center; }
+  .caption {
+    font-size: 13px;
+    color: var(--text-dim);
+    text-align: center;
+    margin: 0 0 8px;
+    font-family: var(--mono);
+  }
+
+  /* ---- table for schema ---- */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--accent); font-weight: 600; }
+  td code { font-size: 12.5px; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .subcard {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .subcard h4 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .subcard h4 .tag {
+    font-family: var(--mono); font-size: 11px; color: var(--accent-3);
+    border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px;
+  }
+  .subcard p { margin: 4px 0; font-size: 13.5px; color: var(--text-dim); }
+
+  footer {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 30px 24px 60px;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 13.5px;
+  }
+  footer strong { color: var(--text); }
+
+  a.inline { color: var(--accent); text-decoration: none; }
+  a.inline:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="dot"></span> Yapper <small>architecture</small></div>
+    <nav class="toc">
+      <a href="#overview">Overview</a>
+      <a href="#system">1 · System</a>
+      <a href="#monorepo">2 · Monorepo</a>
+      <a href="#auth">3 · Auth + JWT</a>
+      <a href="#collab">4 · Collaboration</a>
+      <a href="#er">5 · Schema</a>
+      <a href="#revoke">6 · Revoke</a>
+      <a href="#perm">7 · Permissions</a>
+      <a href="#deploy">Deploy</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Yapper Architecture</h1>
+    <p class="lede">A collaborative, real-time, rich-text note-taking app. Three apps in a Bun/Turborepo monorepo, sharing typed packages, backed by Postgres + Redis, with conflict-free real-time editing over Yjs and stateless WebSocket auth.</p>
+    <div class="pill-row">
+      <span class="pill">Bun + Turborepo</span>
+      <span class="pill">Next.js · TipTap · Yjs</span>
+      <span class="pill">Hocuspocus</span>
+      <span class="pill">Better Auth + JWT/JWKS</span>
+      <span class="pill">Drizzle · PostgreSQL</span>
+      <span class="pill">Redis fanout</span>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <section class="card" id="overview">
+    <h2>Overview</h2>
+    <p>Yapper splits cleanly into three deployable apps plus a set of shared packages. The <code>web</code> app is the editor and dashboard, the <code>api</code> app owns identity, notes metadata and sharing, and the <code>socket</code> app is the realtime document backend. The two server apps never duplicate domain logic — permission derivation, the editor schema, the DB client, and auth verification all live in shared packages.</p>
+
+    <div class="grid-2">
+      <div class="subcard">
+        <h4>web <span class="tag">Next.js · TS · Tailwind</span></h4>
+        <p>Hosts the TipTap editor bound to a Yjs document, the <code>@hocuspocus/provider</code> WebSocket client, and the Better Auth React client. Renders dashboard + editor pages.</p>
+      </div>
+      <div class="subcard">
+        <h4>api <span class="tag">Bun · Express</span></h4>
+        <p>Mounts the Better Auth handler at <code>/api/auth/*</code> (Google + GitHub OAuth). Owns notes &amp; sharing REST endpoints, note metadata + collaborator records. On "make private", publishes a revoke event to Redis.</p>
+      </div>
+      <div class="subcard">
+        <h4>socket <span class="tag">Bun · Hocuspocus</span></h4>
+        <p>Yjs WebSocket backend. Hooks: <code>onAuthenticate</code> (verify JWT + check permission), <code>onLoadDocument</code>/<code>onStoreDocument</code> (persist Yjs state), <code>@hocuspocus/extension-redis</code> for cross-instance fanout, listens for revoke events to close connections.</p>
+      </div>
+      <div class="subcard">
+        <h4>shared packages <span class="tag">db · auth · editor · permissions</span></h4>
+        <p><code>db</code> (Drizzle schema+client), <code>auth</code> (Better Auth config + JWT/JWKS verify), <code>editor</code> (TipTap schema + doc&rarr;title/preview), <code>permissions</code> (effective-permission derivation + Redis cache), <code>typescript-config</code>.</p>
+      </div>
+    </div>
+
+    <div class="note"><strong>Design principle:</strong> permissions are <em>derived, never stored per person</em>, and the same derivation code runs in both <code>api</code> (REST gating) and <code>socket</code> (<code>onAuthenticate</code>). Presence identity is server-authoritative. Persistence is a single debounced full-state blob.</div>
+  </section>
+
+  <!-- 1. SYSTEM -->
+  <section class="card" id="system">
+    <h2><span class="num">01</span> System / Component Diagram</h2>
+    <p>The browser talks to <strong>two</strong> backends: plain HTTP/REST to <code>api</code> for auth and notes metadata, and a persistent WebSocket to <code>socket</code> for the live document. Both server apps read/write Postgres through the shared <code>db</code> package. Multiple <code>socket</code> instances stay in sync through Redis, which carries Yjs updates, awareness, revoke broadcasts, and the permissions cache.</p>
+    <div class="diagram">
+      <p class="caption">Runtime components &amp; data paths</p>
+      <pre class="mermaid">
+flowchart TB
+    subgraph Client["🌐 Browser — web (Next.js)"]
+        TT["TipTap editor + Yjs doc"]
+        HP["@hocuspocus/provider"]
+        BAC["Better Auth React client"]
+    end
+
+    subgraph OAuth["OAuth providers"]
+        G["Google"]
+        GH["GitHub"]
+    end
+
+    subgraph API["api — Bun + Express"]
+        AUTH["Better Auth handler /api/auth/*"]
+        REST["Notes & sharing REST"]
+    end
+
+    subgraph SOCKETS["socket instances — Bun + Hocuspocus"]
+        S1["socket #1\nonAuthenticate / onStore"]
+        S2["socket #2\nonAuthenticate / onStore"]
+    end
+
+    PG[("PostgreSQL\nDrizzle ORM")]
+    RD[("Redis\nYjs+awareness fanout\nrevoke · perm cache")]
+
+    BAC -- "HTTP/REST (cookie session, CORS+creds)" --> AUTH
+    TT  -- "REST: list/create/share" --> REST
+    AUTH <-- "OAuth redirect/callback" --> G
+    AUTH <-- "OAuth redirect/callback" --> GH
+    HP  -- "WebSocket /  Yjs + token(JWT)" --> S1
+
+    AUTH --> PG
+    REST --> PG
+    S1 --> PG
+    S2 --> PG
+
+    S1 <-- "pub/sub fanout" --> RD
+    S2 <-- "pub/sub fanout" --> RD
+    REST -- "publish revoke + bust cache" --> RD
+
+    pkgs["shared: db · auth · editor · permissions"]
+    REST -.uses.-> pkgs
+    S1 -.uses.-> pkgs
+
+    classDef store fill:#1b2a22,stroke:#7ee2c4,color:#dffaf0;
+    classDef redis fill:#2a1b1f,stroke:#ff8585,color:#ffe0e0;
+    class PG store;
+    class RD redis;
+      </pre>
+    </div>
+    <p class="muted">JWT verification in <code>socket</code> is stateless against the JWKS endpoint — there is no DB hop on connect (only the permission lookup, which is Redis-cached).</p>
+  </section>
+
+  <!-- 2. MONOREPO -->
+  <section class="card" id="monorepo">
+    <h2><span class="num">02</span> Monorepo Layout &amp; Dependencies</h2>
+    <p>Turborepo orchestrates <code>apps/*</code> and <code>packages/*</code>. Apps depend on packages; packages depend only on each other (and the shared TS config). This keeps domain logic — especially permission derivation and the editor schema — defined once and consumed everywhere.</p>
+    <div class="diagram">
+      <p class="caption">Workspace dependency graph</p>
+      <pre class="mermaid">
+flowchart LR
+    subgraph apps["apps/"]
+        web["web\nNext.js editor + dashboard"]
+        api["api\nBun + Express"]
+        socket["socket\nBun + Hocuspocus"]
+    end
+
+    subgraph packages["packages/"]
+        db["db\nDrizzle schema + client"]
+        auth["auth\nBetter Auth + JWT/JWKS verify"]
+        editor["editor\nTipTap schema + title/preview"]
+        permissions["permissions\nderivation + Redis cache"]
+        tsconfig["typescript-config"]
+    end
+
+    web --> auth
+    web --> editor
+    api --> auth
+    api --> db
+    api --> permissions
+    socket --> auth
+    socket --> db
+    socket --> editor
+    socket --> permissions
+
+    permissions --> db
+    auth --> db
+
+    web -.-> tsconfig
+    api -.-> tsconfig
+    socket -.-> tsconfig
+    db -.-> tsconfig
+    auth -.-> tsconfig
+    editor -.-> tsconfig
+    permissions -.-> tsconfig
+
+    classDef app fill:#1b2433,stroke:#6ea8fe,color:#e6edf3;
+    classDef pkg fill:#241b33,stroke:#c8a6ff,color:#f0e9ff;
+    class web,api,socket app;
+    class db,auth,editor,permissions,tsconfig pkg;
+      </pre>
+    </div>
+    <p class="muted">Note the two consumers of <code>permissions</code> (<code>api</code> + <code>socket</code>) and of <code>editor</code> (<code>web</code> + <code>socket</code>) — shared schema is what keeps client rendering, server gating, and title/preview extraction consistent.</p>
+  </section>
+
+  <!-- 3. AUTH -->
+  <section class="card" id="auth">
+    <h2><span class="num">03</span> Auth + JWT Sequence</h2>
+    <p>Login is a classic Better Auth OAuth round-trip handled entirely by <code>api</code>, ending in a cookie session. For the WebSocket leg, the client requests a short-lived JWT from Better Auth's JWT plugin and hands it to Hocuspocus as the connection <code>token</code>. The <code>socket</code> app verifies it statelessly against the JWKS endpoint — no session lookup, no DB hop — then derives permission inside <code>onAuthenticate</code>.</p>
+    <div class="diagram">
+      <p class="caption">From OAuth login to an authenticated realtime connection</p>
+      <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant W as web (browser)
+    participant A as api (Better Auth)
+    participant P as OAuth provider<br/>(Google/GitHub)
+    participant S as socket (Hocuspocus)
+    participant J as JWKS endpoint
+
+    Note over W,A: 1) Login (cookie session)
+    W->>A: GET /api/auth/sign-in (provider)
+    A->>P: redirect to OAuth consent
+    P-->>A: callback (code)
+    A->>P: exchange code for profile
+    A-->>W: Set-Cookie session (CORS + credentials)
+
+    Note over W,S: 2) Get JWT, connect WS
+    W->>A: GET /api/auth/token (session cookie)
+    A-->>W: short-lived JWT
+    W->>S: WS connect (token = JWT)
+    S->>J: fetch JWKS (cached)
+    J-->>S: public keys
+    S->>S: verify JWT signature + claims (stateless)
+    S->>S: onAuthenticate(userId, noteId) → derive permission
+    alt permission = none
+        S-->>W: reject connection
+    else view / edit
+        S-->>W: accept (readOnly if view)
+    end
+      </pre>
+    </div>
+    <p class="muted">The <code>userId</code> claim flows out of the verified JWT directly into <code>onAuthenticate</code> and becomes the server-authoritative identity used for presence stamping.</p>
+  </section>
+
+  <!-- 4. COLLAB -->
+  <section class="card" id="collab">
+    <h2><span class="num">04</span> Real-Time Collaboration Sequence</h2>
+    <p>Two editors on the same note connect to (possibly different) <code>socket</code> instances. Local edits become Yjs updates, broadcast to peers on the same instance and fanned out across instances via Redis. Awareness (cursors/selection) flows the same way but is never persisted. The document state is written to Postgres on a debounced <code>onStoreDocument</code> (~2s), at which point title + preview are re-derived and denormalized onto the note row.</p>
+    <div class="diagram">
+      <p class="caption">Edits, awareness, cross-instance fanout, and debounced persistence</p>
+      <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant A as Editor A (web)
+    participant S1 as socket #1
+    participant R as Redis
+    participant S2 as socket #2
+    participant B as Editor B (web)
+    participant DB as PostgreSQL
+
+    A->>S1: Yjs update (insert text)
+    S1->>R: publish update (room = noteId)
+    R-->>S2: fanout update
+    S2-->>B: apply Yjs update → editor refreshes
+
+    Note over A,B: Awareness / cursors (ephemeral)
+    A->>S1: awareness (caret + selection)
+    Note right of S1: identity stamped from JWT<br/>(server-authoritative, not client)
+    S1->>R: publish awareness
+    R-->>S2: fanout awareness
+    S2-->>B: render A's cursor + name + color
+
+    Note over S1,DB: Debounced persistence (~2s)
+    S1->>S1: onStoreDocument (debounced)
+    S1->>DB: UPSERT note_doc.state = Y.encodeStateAsUpdate
+    S1->>DB: UPDATE note.title + note.preview (derived)
+      </pre>
+    </div>
+    <p class="muted">Viewers are presence-only — they appear in awareness but do not broadcast caret/selection, and the server drops any inbound doc updates from a read-only connection.</p>
+  </section>
+
+  <!-- 5. ER -->
+  <section class="card" id="er">
+    <h2><span class="num">05</span> Database Schema (ER)</h2>
+    <p>Better Auth owns the identity tables (<code>user</code>, <code>session</code>, <code>account</code>, <code>verification</code>). Yapper adds <code>note</code> (metadata + access enum + share token), <code>note_doc</code> (the single full-state Yjs blob), and <code>note_collaborator</code> (membership with active/revoked status). Effective permission is computed from these — there is no per-person permission column.</p>
+    <div class="diagram">
+      <p class="caption">Entity-relationship model</p>
+      <pre class="mermaid">
+erDiagram
+    user ||--o{ session : has
+    user ||--o{ account : has
+    user ||--o{ note : owns
+    user ||--o{ note_collaborator : participates
+    note ||--|| note_doc : "stores state"
+    note ||--o{ note_collaborator : "shared with"
+
+    user {
+        uuid id PK
+        text name
+        text email
+        boolean emailVerified
+        text image
+        timestamp createdAt
+    }
+    session {
+        uuid id PK
+        uuid userId FK
+        text token
+        timestamp expiresAt
+    }
+    account {
+        uuid id PK
+        uuid userId FK
+        text providerId
+        text accountId
+    }
+    verification {
+        uuid id PK
+        text identifier
+        text value
+        timestamp expiresAt
+    }
+    note {
+        uuid id PK
+        uuid owner_id FK
+        text title "default Untitled"
+        text preview
+        enum access "private|view|edit, default private"
+        text share_token "unique, nullable"
+        timestamp created_at
+        timestamp updated_at
+    }
+    note_doc {
+        uuid note_id FK
+        bytea state "Y.encodeStateAsUpdate"
+        timestamp updated_at
+    }
+    note_collaborator {
+        uuid id PK
+        uuid note_id FK
+        uuid user_id FK
+        enum status "active|revoked, default active"
+        timestamp joined_at
+        timestamp last_access
+    }
+      </pre>
+    </div>
+    <table>
+      <thead><tr><th>Table</th><th>Purpose</th><th>Key constraints</th></tr></thead>
+      <tbody>
+        <tr><td><code>note</code></td><td>Note metadata + access policy</td><td>access enum default <code>private</code>; <code>share_token</code> unique nullable</td></tr>
+        <tr><td><code>note_doc</code></td><td>Full Yjs state blob, overwritten on debounced store</td><td><code>note_id</code> &rarr; note (1:1)</td></tr>
+        <tr><td><code>note_collaborator</code></td><td>Who has opened a shared note</td><td><code>UNIQUE(note_id, user_id)</code>; status active|revoked</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 6. REVOKE -->
+  <section class="card" id="revoke">
+    <h2><span class="num">06</span> Make-Private / Revoke Flow</h2>
+    <p>When an owner makes a note private, <code>api</code> updates state and busts caches, then publishes a <code>revoke:{noteId}</code> event to Redis. Every <code>socket</code> instance holding that note's room closes the affected non-owner connections. Each client's provider sees the close / auth-failure and routes the user out with a clear message. The owner's own connection is untouched.</p>
+    <div class="diagram">
+      <p class="caption">Owner toggles private → fanout → forced disconnect</p>
+      <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant O as Owner (web)
+    participant A as api
+    participant DB as PostgreSQL
+    participant R as Redis
+    participant S as socket instances
+    participant C as Collaborator (web)
+
+    O->>A: PATCH /notes/:id { access: private }
+    A->>DB: set access=private
+    A->>DB: rotate/invalidate share_token
+    A->>DB: mark note_collaborator rows revoked
+    A->>R: bust permissions cache (noteId)
+    A->>R: publish revoke:{noteId}
+    A-->>O: 200 OK (owner stays connected)
+
+    R-->>S: revoke:{noteId}
+    S->>S: close all non-owner connections in room
+    S-->>C: connection closed / auth-failed
+    C->>C: provider onClose → "note made private by owner"
+    C->>C: route user out of editor
+      </pre>
+    </div>
+    <p class="muted">Cache-bust before publish guarantees that any reconnection attempt re-derives permission from fresh state and resolves to <code>none</code>.</p>
+  </section>
+
+  <!-- 7. PERMISSIONS -->
+  <section class="card" id="perm">
+    <h2><span class="num">07</span> Permission Derivation</h2>
+    <p>Effective permission is a pure function of <code>(userId, noteId)</code> against the note's owner, access enum, and collaborator status. This single derivation lives in <code>packages/permissions</code> and is consumed identically by <code>api</code> (REST gating) and <code>socket</code> (<code>onAuthenticate</code>), with results cached in Redis and busted on any access change.</p>
+    <div class="diagram">
+      <p class="caption">Inputs → decision → none | view | edit</p>
+      <pre class="mermaid">
+flowchart TD
+    Start(["input: userId + noteId"]) --> Cache{"Redis cache hit?"}
+    Cache -- yes --> Out
+    Cache -- no --> Owner{"userId == note.owner_id ?"}
+
+    Owner -- yes --> Edit["edit"]
+    Owner -- no --> Access{"note.access ?"}
+
+    Access -- private --> None["none"]
+    Access -- view --> ColV{"active collaborator?"}
+    Access -- edit --> ColE{"active collaborator?"}
+
+    ColV -- yes --> View["view"]
+    ColV -- no --> None
+    ColE -- yes --> Edit
+    ColE -- no --> None
+
+    Edit --> Cache2["cache in Redis"]
+    View --> Cache2
+    None --> Cache2
+    Cache2 --> Out(["effective permission"])
+
+    classDef res fill:#1b2a22,stroke:#7ee2c4,color:#dffaf0;
+    class Edit,View,None res;
+      </pre>
+    </div>
+    <div class="grid-2">
+      <div class="subcard">
+        <h4>edit</h4>
+        <p>Owner always; or <code>access='edit'</code> + active collaborator. Full read/write Hocuspocus connection, broadcasts caret + selection.</p>
+      </div>
+      <div class="subcard">
+        <h4>view</h4>
+        <p><code>access='view'</code> + active collaborator. Server resolves a <em>readOnly</em> connection: inbound doc updates dropped, outbound + presence still streamed. Presence-only.</p>
+      </div>
+      <div class="subcard">
+        <h4>none</h4>
+        <p>Private note, or non-collaborator. <code>onAuthenticate</code> rejects the connection; REST endpoints return forbidden.</p>
+      </div>
+      <div class="subcard">
+        <h4>shared logic</h4>
+        <p>One implementation in <code>packages/permissions</code> → no drift between REST gating and WS auth. Role changes force client reconnection so the new permission takes effect.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEPLOY -->
+  <section class="card" id="deploy">
+    <h2>Deployment</h2>
+    <p><strong>Now — local-dev-first.</strong> Docker Compose runs Postgres + Redis; all three apps run via <code>turbo dev</code>. The Redis fanout works the same with a single instance, so the realtime path is exercised locally.</p>
+    <ul class="tight">
+      <li><strong>Phase 1 (current):</strong> Docker Compose (Postgres + Redis) + <code>turbo dev</code> for web/api/socket.</li>
+      <li><strong>Phase 2:</strong> single-platform containers (Railway / Render) — one container per app, managed Postgres + Redis.</li>
+      <li><strong>Phase 3:</strong> split topology — <code>web</code> on Vercel, <code>api</code> + <code>socket</code> as containers, scaled horizontally. The Redis fanout is what makes multiple <code>socket</code> instances coherent.</li>
+    </ul>
+    <div class="note"><strong>Why Redis from day one:</strong> even though local dev needs only one <code>socket</code> instance, all cross-instance coordination (Yjs updates, awareness, revoke broadcast, permission cache) routes through Redis so horizontal scaling in Phase 3 requires no architectural change.</div>
+  </section>
+</main>
+
+<footer>
+  <p><strong>Yapper — Architecture Design Doc.</strong> This is a living design document. The diagrams above reflect finalized decisions; the rationale, trade-offs, and the full decision log live in the grilling session notes and the <code>specs/</code> directory. Treat this page as the map, not the territory — when a decision changes, update the spec first, then this doc.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    securityLevel: 'loose',
+    flowchart: { curve: 'basis', useMaxWidth: true },
+    sequence: { useMaxWidth: true, mirrorActors: false },
+    themeVariables: {
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      primaryColor: '#1b2433',
+      primaryBorderColor: '#6ea8fe',
+      primaryTextColor: '#e6edf3',
+      lineColor: '#9aa7b4',
+      secondaryColor: '#241b33',
+      tertiaryColor: '#0b0e13'
+    }
+  });
+</script>
+</body>
+</html>

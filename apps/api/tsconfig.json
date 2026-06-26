@@ -1,0 +1,4 @@
+{
+  "extends": "@yapper/typescript-config/node.json",
+  "include": ["src"]
+}
