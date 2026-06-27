@@ -10,6 +10,8 @@ export interface VerifyOptions {
 
 export interface VerifiedToken {
   userId: string;
+  /** Display name from the token's `name` claim; falls back to "Anonymous" if absent. */
+  name: string;
 }
 
 /** Better Auth base URL = JWT issuer/audience and the host of the JWKS endpoint. */
@@ -40,5 +42,6 @@ export async function verifyJwt(
   if (!payload.sub) {
     throw new Error("JWT is missing a subject (sub) claim");
   }
-  return { userId: payload.sub };
+  const name = typeof payload.name === "string" ? payload.name : "Anonymous";
+  return { userId: payload.sub, name };
 }

@@ -10,12 +10,14 @@
   },
   "dependencies": {
     "@hocuspocus/extension-database": "^2",
+    "@hocuspocus/extension-redis": "^2.15.2",
     "@hocuspocus/server": "^2.15.2",
     "@hocuspocus/transformer": "^2",
     "@yapper/auth": "workspace:*",
     "@yapper/db": "workspace:*",
     "@yapper/editor": "workspace:*",
     "drizzle-orm": "^0.44.2",
+    "ioredis": "^5.4.1",
     "yjs": "^13.6.31"
   },
   "devDependencies": {

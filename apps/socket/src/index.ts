@@ -1,9 +1,11 @@
 import { Database } from "@hocuspocus/extension-database";
 import { type Hocuspocus, Server } from "@hocuspocus/server";
 import { verifyJwt } from "@yapper/auth";
-import { type AuthorizeDeps, authorizeConnection } from "./auth";
+import { type AuthorizeDeps, authorizeConnection, type ConnectionContext } from "./auth";
+import { awarenessUserFor } from "./identity";
 import { saveDerivedMetadata } from "./metadata";
 import { loadDocState, loadNoteOwner, saveDocState } from "./persistence";
+import { buildRedisExtension } from "./redis";
 
 const defaultPort = Number(process.env.SOCKET_PORT ?? 1234);
 
@@ -26,12 +28,16 @@ export interface BuildServerOptions {
  */
 export function buildServer(options: BuildServerOptions = {}): Hocuspocus {
   const verifyToken = options.verifyToken ?? verifyJwt;
+  // Cross-instance fanout for doc updates + awareness (and the revoke bus slice 07 reuses). Only
+  // wired when REDIS_URL is set, so single-instance dev and tests run without Redis.
+  const redis = buildRedisExtension();
 
   return Server.configure({
     port: options.port ?? defaultPort,
     ...(options.debounce !== undefined ? { debounce: options.debounce } : {}),
     ...(options.maxDebounce !== undefined ? { maxDebounce: options.maxDebounce } : {}),
     extensions: [
+      ...(redis ? [redis] : []),
       new Database({
         fetch: async ({ documentName }) => {
           const state = await loadDocState(documentName);
@@ -44,6 +50,17 @@ export function buildServer(options: BuildServerOptions = {}): Hocuspocus {
     ],
     async onAuthenticate({ token, documentName }) {
       return authorizeConnection({ token, documentName }, { verifyToken, loadNoteOwner });
+    },
+    // Identity is server-authoritative: stamped from the verified JWT in `onAuthenticate`, then
+    // pushed to this client so it renders its own awareness label without self-declaring identity
+    // (anti-spoof — ADR-002). The client only ever broadcasts cursor *geometry*.
+    async connected({ context, connectionInstance }) {
+      const { userId, name } = context as ConnectionContext;
+      const payload = JSON.stringify({
+        type: "identity",
+        user: awarenessUserFor({ userId, name }),
+      });
+      connectionInstance.sendStateless(payload);
     },
     async onStoreDocument({ documentName, document }) {
       await saveDerivedMetadata(documentName, document);

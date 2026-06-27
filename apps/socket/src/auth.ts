@@ -1,11 +1,19 @@
-/** Per-connection identity stored on the Hocuspocus `context` once the handshake is authorized. */
+import { colorFromUserId } from "./identity";
+
+/**
+ * Per-connection identity stored on the Hocuspocus `context` once the handshake is authorized.
+ * `name`/`color` are server-authoritative (sourced from the verified JWT, not the client) and are
+ * pushed to the client to render its awareness label — ADR-002/003.
+ */
 export interface ConnectionContext {
   userId: string;
+  name: string;
+  color: string;
 }
 
 export interface AuthorizeDeps {
-  /** Verify the handshake JWT statelessly (JWKS) → the authenticated `userId`. Throws if invalid. */
-  verifyToken: (token: string) => Promise<{ userId: string }>;
+  /** Verify the handshake JWT statelessly (JWKS) → the authenticated `userId` + display `name`. Throws if invalid. */
+  verifyToken: (token: string) => Promise<{ userId: string; name: string }>;
   /** Look up a note's owner id by its id (the Hocuspocus `documentName`); `null` if absent. */
   loadNoteOwner: (noteId: string) => Promise<string | null>;
 }
@@ -20,9 +28,9 @@ export async function authorizeConnection(
   params: { token: string; documentName: string },
   deps: AuthorizeDeps,
 ): Promise<ConnectionContext> {
-  const { userId } = await deps.verifyToken(params.token);
+  const { userId, name } = await deps.verifyToken(params.token);
   const ownerId = await deps.loadNoteOwner(params.documentName);
   if (!ownerId) throw new Error(`Note not found: ${params.documentName}`);
   if (ownerId !== userId) throw new Error("Forbidden: not the note owner");
-  return { userId };
+  return { userId, name, color: colorFromUserId(userId) };
 }

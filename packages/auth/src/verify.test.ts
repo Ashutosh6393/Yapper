@@ -25,9 +25,16 @@ async function makeKeys() {
 
 async function sign(
   privateKey: KeyLike,
-  claims: { sub?: string; issuer?: string; audience?: string; expSecondsFromNow?: number },
+  claims: {
+    sub?: string;
+    name?: string;
+    issuer?: string;
+    audience?: string;
+    expSecondsFromNow?: number;
+  },
 ) {
-  const jwt = new SignJWT({})
+  // Better Auth's jwt plugin signs the whole user object, so `name` rides along as a claim.
+  const jwt = new SignJWT(claims.name ? { name: claims.name } : {})
     .setProtectedHeader({ alg: ALG, kid: KID })
     .setIssuer(claims.issuer ?? ISSUER)
     .setAudience(claims.audience ?? ISSUER)
@@ -46,6 +53,15 @@ test("verifyJwt returns the userId from a valid token's subject", async () => {
   const result = await verifyJwt(token, opts(jwks));
 
   expect(result.userId).toBe("11111111-1111-1111-1111-111111111111");
+});
+
+test("verifyJwt returns the display name from the token's `name` claim", async () => {
+  const { privateKey, jwks } = await makeKeys();
+  const token = await sign(privateKey, { sub: "abc", name: "Ada Lovelace" });
+
+  const result = await verifyJwt(token, opts(jwks));
+
+  expect(result.name).toBe("Ada Lovelace");
 });
 
 test("verifyJwt rejects a token with a tampered payload", async () => {
