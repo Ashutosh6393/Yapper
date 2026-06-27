@@ -76,10 +76,7 @@ export default function DashboardPage() {
         <ul style={list}>
           {notes.map((note) => (
             <li key={note.id} style={listItem}>
-              <Link
-                href={`/notes/${note.id}`}
-                style={{ textDecoration: "none", color: "inherit" }}
-              >
+              <Link href={`/notes/${note.id}`} style={{ textDecoration: "none", color: "inherit" }}>
                 <span style={{ fontWeight: 600 }}>{note.title}</span>
                 {note.preview ? (
                   <span style={{ color: "#666", display: "block", fontSize: 14 }}>

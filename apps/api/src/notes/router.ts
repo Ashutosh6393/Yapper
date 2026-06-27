@@ -39,15 +39,12 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
   router.post(
     "/",
     authed(async (_req, res, userId) => {
-      const [created] = await db
-        .insert(note)
-        .values({ ownerId: userId })
-        .returning({
-          id: note.id,
-          title: note.title,
-          access: note.access,
-          updatedAt: note.updatedAt,
-        });
+      const [created] = await db.insert(note).values({ ownerId: userId }).returning({
+        id: note.id,
+        title: note.title,
+        access: note.access,
+        updatedAt: note.updatedAt,
+      });
       res.status(201).json(created);
     }),
   );
