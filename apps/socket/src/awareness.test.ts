@@ -79,6 +79,8 @@ test("the server pushes a server-authoritative identity derived from the verifie
   expect(identity).toEqual({
     type: "identity",
     user: { id: ownerId, name: REAL_NAME, color: colorFromUserId(ownerId) },
+    // The owner derives `edit`; the client uses this to toggle editability (slice 06).
+    permission: "edit",
   });
 
   provider.destroy();

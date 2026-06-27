@@ -13,6 +13,7 @@
   "dependencies": {
     "@yapper/auth": "workspace:*",
     "@yapper/db": "workspace:*",
+    "@yapper/permissions": "workspace:*",
     "better-auth": "^1.3.4",
     "cors": "^2.8.5",
     "drizzle-orm": "^0.44.2",

@@ -1,13 +1,21 @@
-import { db, note } from "@yapper/db";
-import { desc, eq } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
+import { db, note, noteCollaborator } from "@yapper/db";
+import { bustNotePermissions } from "@yapper/permissions";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { type Request, type RequestHandler, type Response, Router } from "express";
+import { permCache, resolvePerm } from "../permissions";
 
-/**
- * Ownership check for slice 03 (owner-only access). Kept in one place so slice 06 can swap it
- * for `@yapper/permissions` derivation without touching the route handlers (ADR-001).
- */
+/** Owner-only check, used by mutations the owner alone may perform (delete, share). */
 function ownsNote(row: { ownerId: string }, userId: string): boolean {
   return row.ownerId === userId;
+}
+
+/** Where the share link points; the web app serves `/share/:token`. */
+const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
+
+/** A cryptographically-random, URL-safe bearer token for a capability link (still gated by login). */
+function mintShareToken(): string {
+  return randomBytes(24).toString("base64url");
 }
 
 /**
@@ -67,7 +75,35 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
     }),
   );
 
-  // GET /api/notes/:id — owner-only metadata. 404 if absent, 403 if owned by someone else.
+  // GET /api/notes/shared — the caller's "Shared with me": notes they joined (active collaborator)
+  // that are still shared (not back to private). Metadata only. Registered before "/:id".
+  router.get(
+    "/shared",
+    authed(async (_req, res, userId) => {
+      const rows = await db
+        .select({
+          id: note.id,
+          title: note.title,
+          preview: note.preview,
+          access: note.access,
+          updatedAt: note.updatedAt,
+        })
+        .from(noteCollaborator)
+        .innerJoin(note, eq(noteCollaborator.noteId, note.id))
+        .where(
+          and(
+            eq(noteCollaborator.userId, userId),
+            eq(noteCollaborator.status, "active"),
+            ne(note.access, "private"),
+          ),
+        )
+        .orderBy(desc(note.updatedAt));
+      res.json(rows);
+    }),
+  );
+
+  // GET /api/notes/:id — metadata, readable by anyone with view/edit (owner or active collaborator).
+  // 404 if absent, 403 if the caller has no permission. Gate uses the shared derivation (ADR-001).
   router.get(
     "/:id",
     authed(async (req, res, userId) => {
@@ -93,12 +129,53 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         res.status(404).json({ error: "Not found" });
         return;
       }
+      if ((await resolvePerm(id, userId)) === "none") {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      // Tell the client whether it owns the note (gates the Share/Delete UI) without leaking the
+      // owner's id; sharing itself is still enforced owner-only server-side.
+      const { ownerId, ...metadata } = row;
+      res.json({ ...metadata, isOwner: ownerId === userId });
+    }),
+  );
+
+  // POST /api/notes/:id/share — owner enables/updates sharing: set access (view|edit), mint a token
+  // if absent, bust the note's cached permissions, and return the capability link.
+  router.post(
+    "/:id/share",
+    authed(async (req, res, userId) => {
+      const { id } = req.params;
+      const level = (req.body as { level?: unknown }).level;
+      if (level !== "view" && level !== "edit") {
+        res.status(400).json({ error: "level must be 'view' or 'edit'" });
+        return;
+      }
+      if (!id) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      const [row] = await db
+        .select({ ownerId: note.ownerId, shareToken: note.shareToken })
+        .from(note)
+        .where(eq(note.id, id))
+        .limit(1);
+      if (!row) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
       if (!ownsNote(row, userId)) {
         res.status(403).json({ error: "Forbidden" });
         return;
       }
-      const { ownerId: _ownerId, ...metadata } = row;
-      res.json(metadata);
+      const token = row.shareToken ?? mintShareToken();
+      await db
+        .update(note)
+        .set({ access: level, shareToken: token, updatedAt: new Date() })
+        .where(eq(note.id, id));
+      // Everyone's effective permission on this note may have changed — drop all cached entries.
+      await bustNotePermissions(permCache, id);
+      res.json({ token, url: `${webOrigin}/share/${token}`, access: level });
     }),
   );
 
