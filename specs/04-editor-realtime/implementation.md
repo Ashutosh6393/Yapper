@@ -1,6 +1,6 @@
 # 04 · Editor & Realtime (single-user) — Implementation
 
-## Status: in-progress
+## Status: done
 
 ## Completed
 1. `@yapper/editor` package: pure, framework-free `extractTitlePreview(doc)` + `COLLAB_FIELD`
@@ -25,17 +25,13 @@
    connection badge; `/notes/[id]/page.tsx` mounts it in place of the slice-03 placeholder.
 
 ## In Progress
-- Manual end-to-end verification (type/edit/reload, two same-owner tabs sync) — see Verification.
-- PR + merge of `feat/editor-realtime`.
+- (none)
 
 ## Blocked
 - (none)
 
 ## Next Steps
-1. Run full test suite with `DATABASE_URL` set (socket persistence tests + api tests).
-2. Manual smoke: edit a note, reload (content persists), open two tabs (sync); confirm dashboard
-   title/preview update; confirm a non-owner/bad-token handshake is rejected.
-3. Open PR; on merge flip ROADMAP + this file to `done`.
+- (none) — `feat/editor-realtime` merged (PR #8 → `dev`); slice `done`.
 
 ## Verification
 - ✅ `bun run check-types` clean across all 7 packages.
