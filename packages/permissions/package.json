@@ -1,0 +1,24 @@
+{
+  "name": "@yapper/permissions",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./derive": "./src/derive.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@yapper/db": "workspace:*",
+    "drizzle-orm": "^0.44.2",
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "@yapper/typescript-config": "workspace:*",
+    "typescript": "5.9.2"
+  }
+}
