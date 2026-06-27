@@ -1,6 +1,6 @@
 # 03 · Notes & Dashboard — Implementation
 
-## Status: in-progress
+## Status: done
 
 ## Completed
 1. `requireAuth` middleware (`apps/api/src/auth/requireAuth.ts`) — injectable `SessionResolver`
@@ -17,13 +17,13 @@
    empty state, `/notes/[id]` gated shell (title + placeholder + owner delete).
 
 ## In Progress
-- Merge of `feat/notes-dashboard` → flips status to `done`.
+- (none)
 
 ## Blocked
 - (none)
 
 ## Next Steps
-1. Open PR; on merge mark slice `done` in ROADMAP + here.
+- (none) — `feat/notes-dashboard` merged (PR #6); slice `done`.
 
 ## Verification
 - ✅ Manual smoke test (real OAuth login → create → delete) confirmed working by the owner.

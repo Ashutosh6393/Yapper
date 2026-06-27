@@ -48,3 +48,12 @@ export const notesApi = {
   get: (id: string) => api<NoteMetadata>(`/api/notes/${id}`),
   remove: (id: string) => api<void>(`/api/notes/${id}`, { method: "DELETE" }),
 };
+
+/**
+ * Fetch a fresh Better Auth JWT (jwt plugin's `/token`, gated by the session cookie) for the
+ * socket handshake. Called per (re)connect so the short-lived token never outlives a reconnect.
+ */
+export async function getAuthToken(): Promise<string> {
+  const { token } = await api<{ token: string }>("/api/auth/token");
+  return token;
+}
