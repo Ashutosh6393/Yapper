@@ -32,7 +32,7 @@ beforeAll(async () => {
 
   server = buildServer({
     port: PORT,
-    verifyToken: async () => ({ userId: ownerId }),
+    verifyToken: async () => ({ userId: ownerId, name: "Owner" }),
     debounce: 100,
     maxDebounce: 300,
   });
