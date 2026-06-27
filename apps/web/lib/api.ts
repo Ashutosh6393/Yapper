@@ -14,6 +14,25 @@ export interface NoteSummary {
   updatedAt: string;
 }
 
+/** A note in "Shared with me" — like {@link NoteSummary} plus the note-level access role. */
+export interface SharedNoteSummary extends NoteSummary {
+  access: NoteAccess;
+}
+
+/** Result of enabling/updating sharing on a note: the capability link + the new access level. */
+export interface ShareInfo {
+  token: string;
+  url: string;
+  access: NoteAccess;
+}
+
+/** Note summary shown on the `/share/:token` join page (before the user joins). */
+export interface ShareSummary {
+  id: string;
+  title: string;
+  access: NoteAccess;
+}
+
 /** Shape returned by create / get-one. */
 export interface NoteMetadata {
   id: string;
@@ -22,6 +41,8 @@ export interface NoteMetadata {
   access: NoteAccess;
   createdAt: string;
   updatedAt: string;
+  /** Whether the caller owns this note — gates the Share/Delete controls. Present on get-one. */
+  isOwner?: boolean;
 }
 
 export class ApiError extends Error {
@@ -44,9 +65,21 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const notesApi = {
   list: () => api<NoteSummary[]>("/api/notes"),
+  listShared: () => api<SharedNoteSummary[]>("/api/notes/shared"),
   create: () => api<NoteMetadata>("/api/notes", { method: "POST" }),
   get: (id: string) => api<NoteMetadata>(`/api/notes/${id}`),
   remove: (id: string) => api<void>(`/api/notes/${id}`, { method: "DELETE" }),
+  share: (id: string, level: Exclude<NoteAccess, "private">) =>
+    api<ShareInfo>(`/api/notes/${id}/share`, {
+      method: "POST",
+      body: JSON.stringify({ level }),
+    }),
+};
+
+/** Capability-link join flow (the `/share/:token` page). Both calls require a session. */
+export const shareApi = {
+  get: (token: string) => api<ShareSummary>(`/api/share/${token}`),
+  join: (token: string) => api<{ noteId: string }>(`/api/share/${token}/join`, { method: "POST" }),
 };
 
 /**

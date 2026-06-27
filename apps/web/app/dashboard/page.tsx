@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { type NoteSummary, notesApi } from "../../lib/api";
+import { type NoteSummary, notesApi, type SharedNoteSummary } from "../../lib/api";
 import { signOut, useSession } from "../../lib/auth-client";
 
 /**
@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const [notes, setNotes] = useState<NoteSummary[] | null>(null);
+  const [shared, setShared] = useState<SharedNoteSummary[] | null>(null);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -28,6 +29,10 @@ export default function DashboardPage() {
       .list()
       .then(setNotes)
       .catch(() => setNotes([]));
+    notesApi
+      .listShared()
+      .then(setShared)
+      .catch(() => setShared([]));
   }, []);
 
   useEffect(() => {
@@ -75,23 +80,42 @@ export default function DashboardPage() {
       ) : (
         <ul style={list}>
           {notes.map((note) => (
-            <li key={note.id} style={listItem}>
-              <Link href={`/notes/${note.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-                <span style={{ fontWeight: 600 }}>{note.title}</span>
-                {note.preview ? (
-                  <span style={{ color: "#666", display: "block", fontSize: 14 }}>
-                    {note.preview}
-                  </span>
-                ) : null}
-                <span style={{ color: "#999", display: "block", fontSize: 12, marginTop: 4 }}>
-                  {new Date(note.updatedAt).toLocaleString()}
-                </span>
-              </Link>
-            </li>
+            <NoteCard key={note.id} note={note} />
+          ))}
+        </ul>
+      )}
+
+      <h2 style={sectionHeading}>Shared with me</h2>
+      {shared === null ? (
+        <p style={{ color: "#555" }}>Loading…</p>
+      ) : shared.length === 0 ? (
+        <p style={{ color: "#555" }}>No notes shared with you yet.</p>
+      ) : (
+        <ul style={list}>
+          {shared.map((note) => (
+            <NoteCard key={note.id} note={note} badge={note.access} />
           ))}
         </ul>
       )}
     </main>
+  );
+}
+
+/** A single note row linking into the editor, with an optional access badge (for shared notes). */
+function NoteCard({ note, badge }: { note: NoteSummary; badge?: string }) {
+  return (
+    <li style={listItem}>
+      <Link href={`/notes/${note.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+        <span style={{ fontWeight: 600 }}>{note.title}</span>
+        {badge ? <span style={accessBadge}>{badge}</span> : null}
+        {note.preview ? (
+          <span style={{ color: "#666", display: "block", fontSize: 14 }}>{note.preview}</span>
+        ) : null}
+        <span style={{ color: "#999", display: "block", fontSize: 12, marginTop: 4 }}>
+          {new Date(note.updatedAt).toLocaleString()}
+        </span>
+      </Link>
+    </li>
   );
 }
 
@@ -113,4 +137,15 @@ const primaryBtn = {
 } as const;
 const ghostBtn = { padding: "6px 12px", borderRadius: 6, cursor: "pointer" } as const;
 const list = { listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 12 } as const;
+const sectionHeading = { marginTop: 40, marginBottom: 16 } as const;
+const accessBadge = {
+  marginLeft: 8,
+  fontSize: 11,
+  textTransform: "uppercase" as const,
+  letterSpacing: 0.5,
+  color: "#555",
+  background: "#eee",
+  borderRadius: 4,
+  padding: "1px 6px",
+} as const;
 const listItem = { border: "1px solid #e5e5e5", borderRadius: 8, padding: "12px 16px" } as const;

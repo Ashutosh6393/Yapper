@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { type NoteMetadata, notesApi } from "../../../lib/api";
 import { useSession } from "../../../lib/auth-client";
 import { Editor } from "./Editor";
+import { ShareDialog } from "./ShareDialog";
 
 /**
  * Note page (slice 04): gated; loads metadata, then mounts the collaborative {@link Editor} bound
@@ -70,9 +71,14 @@ export default function NotePage() {
         <button type="button" onClick={() => router.push("/dashboard")} style={ghostBtn}>
           ← My Notes
         </button>
-        <button type="button" onClick={deleteNote} disabled={deleting} style={dangerBtn}>
-          {deleting ? "Deleting…" : "Delete"}
-        </button>
+        {note.isOwner ? (
+          <div style={{ display: "flex", gap: 8, position: "relative" }}>
+            <ShareDialog noteId={id} initialAccess={note.access} />
+            <button type="button" onClick={deleteNote} disabled={deleting} style={dangerBtn}>
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+          </div>
+        ) : null}
       </header>
 
       <h1>{note.title}</h1>

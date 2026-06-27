@@ -3,12 +3,12 @@ import { db, note, user } from "@yapper/db";
 import { eq } from "drizzle-orm";
 import * as Y from "yjs";
 import { saveDerivedMetadata } from "./metadata";
-import { loadDocState, loadNoteOwner, saveDocState } from "./persistence";
+import { loadDocState, saveDocState } from "./persistence";
 
 /**
- * Integration coverage for the socket's DB-facing path (goal states 2–4): owner lookup for the
- * handshake, full-state persistence + reload, and server-side title/preview derivation — all
- * against the real database, exactly what the connect/store path invokes.
+ * Integration coverage for the socket's DB-facing path: full-state persistence + reload and
+ * server-side title/preview derivation — all against the real database, exactly what the
+ * connect/store path invokes.
  */
 
 let ownerId: string;
@@ -43,11 +43,6 @@ function buildDoc(...lines: string[]): Y.Doc {
   fragment.insert(0, blocks);
   return ydoc;
 }
-
-test("loadNoteOwner returns the owner for a real note and null for a missing one", async () => {
-  expect(await loadNoteOwner(noteId)).toBe(ownerId);
-  expect(await loadNoteOwner(crypto.randomUUID())).toBeNull();
-});
 
 test("doc state round-trips: save then load restores the same Yjs content", async () => {
   const ydoc = buildDoc("Persisted line");

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { db, note, noteDoc, pool, user } from "@yapper/db";
+import { db, note, noteDoc, user } from "@yapper/db";
 import { eq } from "drizzle-orm";
 import request from "supertest";
 import { createApp } from "../app";
@@ -34,10 +34,10 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(async () => {
-  // Cascades delete every note (and note_doc) owned by these users.
+  // Cascades delete every note (and note_doc) owned by these users. (Pool drained globally — see
+  // test-setup.ts.)
   await db.delete(user).where(eq(user.id, ownerId));
   await db.delete(user).where(eq(user.id, otherId));
-  await pool.end();
 });
 
 test("unauthenticated request is rejected with 401", async () => {

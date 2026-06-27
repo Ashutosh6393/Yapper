@@ -2,47 +2,44 @@ import { expect, test } from "bun:test";
 import { type AuthorizeDeps, authorizeConnection } from "./auth";
 import { colorFromUserId } from "./identity";
 
-const OWNER = "11111111-1111-1111-1111-111111111111";
+const USER = "11111111-1111-1111-1111-111111111111";
 const NOTE = "22222222-2222-2222-2222-222222222222";
 
 function deps(over: Partial<AuthorizeDeps> = {}): AuthorizeDeps {
   return {
-    verifyToken: async () => ({ userId: OWNER, name: "Owner" }),
-    loadNoteOwner: async () => OWNER,
+    verifyToken: async () => ({ userId: USER, name: "User" }),
+    resolvePermission: async () => "edit",
     ...over,
   };
 }
 
-test("accepts the note owner holding a valid token", async () => {
-  const ctx = await authorizeConnection({ token: "t", documentName: NOTE }, deps());
-  expect(ctx.userId).toBe(OWNER);
+test("an editor is accepted with a read/write (not read-only) connection", async () => {
+  const result = await authorizeConnection({ token: "t", documentName: NOTE }, deps());
+  expect(result.context.userId).toBe(USER);
+  expect(result.context.permission).toBe("edit");
+  expect(result.readOnly).toBe(false);
+});
+
+test("a viewer is accepted but marked read-only", async () => {
+  const result = await authorizeConnection(
+    { token: "t", documentName: NOTE },
+    deps({ resolvePermission: async () => "view" }),
+  );
+  expect(result.context.permission).toBe("view");
+  expect(result.readOnly).toBe(true);
 });
 
 test("stamps server-authoritative identity (name + deterministic color) onto the context", async () => {
-  const ctx = await authorizeConnection({ token: "t", documentName: NOTE }, deps());
-  expect(ctx.name).toBe("Owner");
-  expect(ctx.color).toBe(colorFromUserId(OWNER));
+  const { context } = await authorizeConnection({ token: "t", documentName: NOTE }, deps());
+  expect(context.name).toBe("User");
+  expect(context.color).toBe(colorFromUserId(USER));
 });
 
-test("rejects a verified user who does not own the note", async () => {
+test("a user with no permission is rejected", async () => {
   await expect(
     authorizeConnection(
       { token: "t", documentName: NOTE },
-      deps({
-        verifyToken: async () => ({
-          userId: "33333333-3333-3333-3333-333333333333",
-          name: "Mallory",
-        }),
-      }),
-    ),
-  ).rejects.toThrow();
-});
-
-test("rejects a connection to a note that does not exist", async () => {
-  await expect(
-    authorizeConnection(
-      { token: "t", documentName: NOTE },
-      deps({ loadNoteOwner: async () => null }),
+      deps({ resolvePermission: async () => "none" }),
     ),
   ).rejects.toThrow();
 });

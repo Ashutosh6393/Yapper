@@ -4,6 +4,7 @@ import cors from "cors";
 import express, { type Express } from "express";
 import { requireAuth, type SessionResolver } from "./auth/requireAuth";
 import { notesRouter } from "./notes/router";
+import { shareRouter } from "./share/router";
 
 export interface CreateAppOptions {
   /**
@@ -31,6 +32,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   });
 
   app.use("/api/notes", notesRouter(requireAuth(options.resolveSession)));
+  app.use("/api/share", shareRouter(requireAuth(options.resolveSession)));
 
   return app;
 }
