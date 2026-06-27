@@ -9,10 +9,18 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@hocuspocus/extension-database": "^2",
     "@hocuspocus/server": "^2.15.2",
-    "@yapper/db": "workspace:*"
+    "@hocuspocus/transformer": "^2",
+    "@yapper/auth": "workspace:*",
+    "@yapper/db": "workspace:*",
+    "@yapper/editor": "workspace:*",
+    "drizzle-orm": "^0.44.2",
+    "yjs": "^13.6.31"
   },
   "devDependencies": {
+    "@hocuspocus/provider": "^2",
+    "@types/bun": "^1.2.0",
     "@yapper/typescript-config": "workspace:*",
     "typescript": "5.9.2"
   }

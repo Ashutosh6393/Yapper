@@ -4,10 +4,11 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { type NoteMetadata, notesApi } from "../../../lib/api";
 import { useSession } from "../../../lib/auth-client";
+import { Editor } from "./Editor";
 
 /**
- * Note page shell (slice 03): gated, shows metadata + a placeholder where the editor lands
- * in slice 04, plus owner delete. 403/404 from `api` resolve to "not found" here.
+ * Note page (slice 04): gated; loads metadata, then mounts the collaborative {@link Editor} bound
+ * to the note's Yjs doc over the socket. 403/404 from `api` resolve to "not found" here.
  */
 export default function NotePage() {
   const { data: session, isPending } = useSession();
@@ -75,7 +76,7 @@ export default function NotePage() {
       </header>
 
       <h1>{note.title}</h1>
-      <div style={placeholder}>Editor coming soon (slice 04).</div>
+      <Editor noteId={id} />
     </main>
   );
 }
@@ -90,11 +91,4 @@ const dangerBtn = {
   color: "#d33",
   background: "transparent",
   cursor: "pointer",
-} as const;
-const placeholder = {
-  border: "1px dashed #ccc",
-  borderRadius: 8,
-  padding: "3rem",
-  color: "#999",
-  textAlign: "center",
 } as const;
