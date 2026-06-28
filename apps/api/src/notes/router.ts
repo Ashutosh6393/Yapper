@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { db, note, noteCollaborator } from "@yapper/db";
-import { bustNotePermissions } from "@yapper/permissions";
+import { bustNotePermissions, revokeChannel, roleChangeChannel } from "@yapper/permissions";
 import { and, desc, eq, ne } from "drizzle-orm";
 import { type Request, type RequestHandler, type Response, Router } from "express";
 import { permCache, resolvePerm } from "../permissions";
+import { redisPublisher } from "../redis";
 
 /** Owner-only check, used by mutations the owner alone may perform (delete, share). */
 function ownsNote(row: { ownerId: string }, userId: string): boolean {
@@ -175,7 +176,47 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         .where(eq(note.id, id));
       // Everyone's effective permission on this note may have changed — drop all cached entries.
       await bustNotePermissions(permCache, id);
+      await redisPublisher?.publish(roleChangeChannel(id), JSON.stringify({ newLevel: level }));
       res.json({ token, url: `${webOrigin}/share/${token}`, access: level });
+    }),
+  );
+
+  // POST /api/notes/:id/private — owner only. Atomically: set access=private, clear shareToken,
+  // revoke all collaborators, bust perm cache, then publish revoke event to all socket instances.
+  router.post(
+    "/:id/private",
+    authed(async (req, res, userId) => {
+      const { id } = req.params;
+      if (!id) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      const [row] = await db
+        .select({ ownerId: note.ownerId })
+        .from(note)
+        .where(eq(note.id, id))
+        .limit(1);
+      if (!row) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      if (!ownsNote(row, userId)) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      await db.transaction(async (tx) => {
+        await tx
+          .update(note)
+          .set({ access: "private", shareToken: null, updatedAt: new Date() })
+          .where(eq(note.id, id));
+        await tx
+          .update(noteCollaborator)
+          .set({ status: "revoked" })
+          .where(eq(noteCollaborator.noteId, id));
+      });
+      await bustNotePermissions(permCache, id);
+      await redisPublisher?.publish(revokeChannel(id), JSON.stringify({ reason: "made_private" }));
+      res.status(204).end();
     }),
   );
 

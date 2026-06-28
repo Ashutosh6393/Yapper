@@ -14,6 +14,22 @@ export interface CreateAppOptions {
   resolveSession?: SessionResolver;
 }
 
+/**
+ * Convenience factory for tests: `skipAuth: true` wires up a fake session resolver that reads
+ * the user id from the `x-test-user-id` header, so routes can be exercised without real OAuth.
+ */
+export function buildApp(options: { skipAuth?: boolean } = {}): ReturnType<typeof createApp> {
+  if (options.skipAuth) {
+    return createApp({
+      resolveSession: async (req) => {
+        const id = req.header("x-test-user-id");
+        return id && id.length > 0 ? id : null;
+      },
+    });
+  }
+  return createApp();
+}
+
 /** Builds the Express app. Kept separate from `listen` so tests can mount it in-process. */
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
