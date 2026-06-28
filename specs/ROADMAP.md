@@ -12,7 +12,7 @@ on is `done`. See `architecture.html` (repo root) for the system diagrams these 
 | 03 | [notes-dashboard](./03-notes-dashboard/design.md) | 02 | **done** | Logged-in user creates / lists / opens / deletes their own notes via REST + "My Notes" UI; routes gated by auth |
 | 04 | [editor-realtime](./04-editor-realtime/design.md) | 03 | **done** | Owner edits rich text; Hocuspocus persists Yjs state to `note_doc`; title/preview derived; reload preserves content |
 | 05 | [collab-cursors](./05-collab-cursors/design.md) | 04 | **done** | Two clients on one note sync edits + see live cursors/selections + presence, via Redis fanout across socket instances |
-| 06 | [sharing-permissions](./06-sharing-permissions/design.md) | 05 | **in-progress** | Capability link → login → join as collaborator; view/edit enforced server-side; "Shared with me" lists joined notes |
+| 06 | [sharing-permissions](./06-sharing-permissions/design.md) | 05 | **done** | Capability link → login → join as collaborator; view/edit enforced server-side; "Shared with me" lists joined notes |
 | 07 | [make-private-revoke](./07-make-private-revoke/design.md) | 06 | **done** | Owner toggles private → collaborators instantly disconnected with "note made private by owner"; token rotated; owner stays connected |
 
 ## Status legend
