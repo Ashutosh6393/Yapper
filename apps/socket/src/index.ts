@@ -1,12 +1,14 @@
 import { Database } from "@hocuspocus/extension-database";
 import { type Hocuspocus, Server } from "@hocuspocus/server";
 import { verifyJwt } from "@yapper/auth";
-import { buildResolveDeps, resolvePermission } from "@yapper/permissions";
+import { buildResolveDeps, loadNote, resolvePermission } from "@yapper/permissions";
+import type IORedis from "ioredis";
 import { type AuthorizeDeps, authorizeConnection, type ConnectionContext } from "./auth";
 import { awarenessUserFor } from "./identity";
 import { saveDerivedMetadata } from "./metadata";
 import { loadDocState, saveDocState } from "./persistence";
 import { buildRedisExtension } from "./redis";
+import { setupRevokeSubscriber } from "./revoke";
 
 const defaultPort = Number(process.env.SOCKET_PORT ?? 1234);
 
@@ -16,6 +18,8 @@ export interface BuildServerOptions {
   verifyToken?: AuthorizeDeps["verifyToken"];
   /** Effective-permission resolver; defaults to the shared `@yapper/permissions` derivation. Injectable for tests. */
   resolvePermission?: AuthorizeDeps["resolvePermission"];
+  /** Note loader; defaults to the db-backed `loadNote` from `@yapper/permissions`. Injectable for tests. */
+  loadNote?: AuthorizeDeps["loadNote"];
   /** Debounce window (ms) for `onStoreDocument`. Defaults to Hocuspocus' ~2s. */
   debounce?: number;
   maxDebounce?: number;
@@ -37,11 +41,12 @@ export function buildServer(options: BuildServerOptions = {}): Hocuspocus {
   const resolvePerm =
     options.resolvePermission ??
     ((noteId: string, userId: string) => resolvePermission(noteId, userId, resolveDeps));
+  const loadNoteFn = options.loadNote ?? loadNote;
   // Cross-instance fanout for doc updates + awareness (and the revoke bus slice 07 reuses). Only
   // wired when REDIS_URL is set, so single-instance dev and tests run without Redis.
   const redis = buildRedisExtension();
 
-  return Server.configure({
+  const server = Server.configure({
     port: options.port ?? defaultPort,
     ...(options.debounce !== undefined ? { debounce: options.debounce } : {}),
     ...(options.maxDebounce !== undefined ? { maxDebounce: options.maxDebounce } : {}),
@@ -60,7 +65,7 @@ export function buildServer(options: BuildServerOptions = {}): Hocuspocus {
     async onAuthenticate({ token, documentName, connection }) {
       const { context, readOnly } = await authorizeConnection(
         { token, documentName },
-        { verifyToken, resolvePermission: resolvePerm },
+        { verifyToken, resolvePermission: resolvePerm, loadNote: loadNoteFn },
       );
       // Server-side read-only for viewers: Hocuspocus then drops this connection's inbound doc
       // updates (still streaming out + awareness). Client `editable:false` is UX only (ADR-003).
@@ -87,6 +92,22 @@ export function buildServer(options: BuildServerOptions = {}): Hocuspocus {
       console.log(`[socket] hocuspocus listening on ws://localhost:${options.port ?? defaultPort}`);
     },
   });
+
+  // Wire up the Redis revoke subscriber (no-op when REDIS_URL is unset).
+  const redisUrl = process.env.REDIS_URL;
+  let revokeSubscriber: IORedis | null = null;
+  if (redisUrl) {
+    revokeSubscriber = setupRevokeSubscriber(server, redisUrl);
+  }
+
+  // Patch destroy to also clean up the revoke subscriber.
+  const originalDestroy = server.destroy.bind(server);
+  server.destroy = async () => {
+    await revokeSubscriber?.quit();
+    return originalDestroy();
+  };
+
+  return server;
 }
 
 // Boot only when run directly — importing this module (tests) must not start listening.
