@@ -9,57 +9,57 @@ import { getAuthToken } from "../../../lib/api";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "ws://localhost:1234";
 
-type ConnStatus = "connecting" | "connected" | "disconnected" | "denied";
+type ConnStatus = "connecting" | "connected" | "disconnected" | "denied" | "made_private";
 type Permission = "none" | "view" | "edit";
 
-/** Server-authoritative awareness identity, pushed by the socket on connect (never client-set). */
 interface AwarenessUser {
   id: string;
   name: string;
   color: string;
 }
 
-/**
- * Collaborative editor for a note. Opens a `HocuspocusProvider` to the `socket` app keyed by the
- * note id, authenticating the handshake with a freshly fetched Better Auth JWT (refetched on every
- * (re)connect). TipTap binds to the provider's Yjs doc, so edits sync and persist server-side.
- *
- * Live cursors/presence (slice 05): `CollaborationCaret` broadcasts this client's caret + selection
- * geometry over awareness; its *identity* (name/color) is stamped server-side and delivered via a
- * stateless message — the client never declares its own identity (anti-spoof).
- */
-export function Editor({ noteId }: { noteId: string }) {
+export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivate?: () => void }) {
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
   const [status, setStatus] = useState<ConnStatus>("connecting");
   const [identity, setIdentity] = useState<AwarenessUser | null>(null);
   const [permission, setPermission] = useState<Permission>("view");
 
   useEffect(() => {
+    // Track whether we intentionally disconnected due to a server kick, so `onDisconnect`
+    // does not override the `made_private` status with "disconnected".
+    let madePrivate = false;
+
     const p = new HocuspocusProvider({
       url: SOCKET_URL,
       name: noteId,
-      // Fetched on each connect/reconnect so the short-lived token never goes stale mid-session.
       token: () => getAuthToken(),
       onStatus: ({ status }) => setStatus(status === "connected" ? "connected" : "connecting"),
-      onDisconnect: () => setStatus("disconnected"),
+      onDisconnect: () => {
+        if (!madePrivate) setStatus("disconnected");
+      },
       onAuthenticationFailed: () => setStatus("denied"),
-      // The socket sends `{ type: "identity", user, permission }` derived from the verified JWT.
       onStateless: ({ payload }) => {
         const msg = JSON.parse(payload) as {
           type?: string;
           user?: AwarenessUser;
           permission?: Permission;
+          reason?: string;
         };
         if (msg.type === "identity" && msg.user) setIdentity(msg.user);
         if (msg.permission) setPermission(msg.permission);
+        if (msg.type === "kick" && msg.reason === "note_made_private") {
+          madePrivate = true;
+          setStatus("made_private");
+          p.disconnect();
+          onMadePrivate?.();
+        }
       },
     });
     setProvider(p);
     return () => p.destroy();
-  }, [noteId]);
+  }, [noteId, onMadePrivate]);
 
   if (!provider) return null;
-  // `key` ties the bound editor's lifecycle to the provider/note so it remounts on note change.
   return (
     <BoundEditor
       key={noteId}
@@ -84,23 +84,29 @@ function BoundEditor({
 }) {
   const editor = useEditor({
     extensions: [...buildExtensions(provider.document), CollaborationCaret.configure({ provider })],
-    // Next renders this on the server first; defer initial render to avoid hydration mismatch.
     immediatelyRender: false,
-    // Start non-editable; the server-pushed permission flips this on for editors. Read-only is
-    // enforced server-side regardless — this is UX (ADR-003).
     editable: false,
     editorProps: { attributes: { style: editorAttrStyle } },
   });
 
-  // Apply the server-stamped identity to this client's awareness once both are ready.
   useEffect(() => {
     if (editor && identity) editor.commands.updateUser(identity);
   }, [editor, identity]);
 
-  // Toggle editability from the server-derived permission (`edit` → editable).
   useEffect(() => {
     editor?.setEditable(permission === "edit");
   }, [editor, permission]);
+
+  if (status === "made_private") {
+    return (
+      <div style={madePrivateBanner}>
+        <p style={{ margin: 0, fontWeight: 600 }}>Note made private by owner</p>
+        <p style={{ margin: "4px 0 0", fontSize: 14, color: "#555" }}>
+          The owner has stopped sharing this note.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -114,7 +120,6 @@ function BoundEditor({
   );
 }
 
-/** Live presence list: distinct users from awareness states, each with their stable color. */
 function Presence({ provider }: { provider: HocuspocusProvider }) {
   const [users, setUsers] = useState<AwarenessUser[]>([]);
 
@@ -153,12 +158,14 @@ function ConnectionBadge({ status }: { status: ConnStatus }) {
     connected: "Connected",
     disconnected: "Disconnected — reconnecting…",
     denied: "Access denied",
+    made_private: "Note made private",
   };
   const color: Record<ConnStatus, string> = {
     connecting: "#b58900",
     connected: "#2aa198",
     disconnected: "#b58900",
     denied: "#d33",
+    made_private: "#d33",
   };
   return (
     <div style={{ ...badge, color: color[status] }}>
@@ -204,6 +211,13 @@ const viewOnlyTag = {
   border: "1px solid #e6d8a8",
   borderRadius: 999,
   padding: "1px 8px",
+} as const;
+const madePrivateBanner = {
+  padding: "24px 16px",
+  background: "#fff5f5",
+  border: "1px solid #ffc5c5",
+  borderRadius: 8,
+  textAlign: "center" as const,
 } as const;
 const editorAttrStyle =
   "min-height: 320px; outline: none; border: 1px solid #e2e2e2; border-radius: 8px; padding: 16px;";
