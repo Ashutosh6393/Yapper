@@ -2,15 +2,11 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { type NoteMetadata, notesApi } from "../../../lib/api";
+import { type NoteAccess, type NoteMetadata, notesApi } from "../../../lib/api";
 import { useSession } from "../../../lib/auth-client";
 import { Editor } from "./Editor";
 import { ShareDialog } from "./ShareDialog";
 
-/**
- * Note page (slice 04): gated; loads metadata, then mounts the collaborative {@link Editor} bound
- * to the note's Yjs doc over the socket. 403/404 from `api` resolve to "not found" here.
- */
 export default function NotePage() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
@@ -32,7 +28,6 @@ export default function NotePage() {
         setNote(data);
         setStatus("ready");
       })
-      // 403/404 (and any other failure) → "not found" for this shell.
       .catch(() => setStatus("notfound"));
   }, [id]);
 
@@ -41,7 +36,7 @@ export default function NotePage() {
   }, [session, loadNote]);
 
   if (isPending) return <main style={main}>Loading…</main>;
-  if (!session) return null; // redirecting
+  if (!session) return null;
 
   async function deleteNote() {
     setDeleting(true);
@@ -51,6 +46,14 @@ export default function NotePage() {
     } catch {
       setDeleting(false);
     }
+  }
+
+  function handleAccessChange(newAccess: NoteAccess) {
+    setNote((prev) => (prev ? { ...prev, access: newAccess } : prev));
+  }
+
+  function handleMadePrivate() {
+    router.push("/dashboard");
   }
 
   if (status === "loading") return <main style={main}>Loading note…</main>;
@@ -73,7 +76,11 @@ export default function NotePage() {
         </button>
         {note.isOwner ? (
           <div style={{ display: "flex", gap: 8, position: "relative" }}>
-            <ShareDialog noteId={id} initialAccess={note.access} />
+            <ShareDialog
+              noteId={id}
+              initialAccess={note.access}
+              onAccessChange={handleAccessChange}
+            />
             <button type="button" onClick={deleteNote} disabled={deleting} style={dangerBtn}>
               {deleting ? "Deleting…" : "Delete"}
             </button>
@@ -82,7 +89,7 @@ export default function NotePage() {
       </header>
 
       <h1>{note.title}</h1>
-      <Editor noteId={id} />
+      <Editor noteId={id} onMadePrivate={note.isOwner ? undefined : handleMadePrivate} />
     </main>
   );
 }

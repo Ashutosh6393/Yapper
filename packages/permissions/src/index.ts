@@ -9,6 +9,12 @@ export {
   permCacheKey,
 } from "./cache";
 export { effectivePermission, type Permission, type PermissionNote } from "./derive";
+export {
+  buildRedisPublisher,
+  type RedisPublisher,
+  revokeChannel,
+  roleChangeChannel,
+} from "./events";
 export { isActiveCollaborator, loadNote } from "./loaders";
 export {
   bustNotePermissions,

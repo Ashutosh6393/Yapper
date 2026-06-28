@@ -74,6 +74,7 @@ export const notesApi = {
       method: "POST",
       body: JSON.stringify({ level }),
     }),
+  makePrivate: (id: string) => api<void>(`/api/notes/${id}/private`, { method: "POST" }),
 };
 
 /** Capability-link join flow (the `/share/:token` page). Both calls require a session. */
