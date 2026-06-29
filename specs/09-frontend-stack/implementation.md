@@ -1,6 +1,6 @@
 # 09 · Frontend Stack Adoption — Implementation
 
-## Status: 09a done — 09b done (web response schemas → 09c)
+## Status: 09a, 09b, 09c done — 09d (shadcn UI migration) next
 
 Four dependency-ordered slices; each is its own `feat/` branch + PR and must be merged in order
 (09a → 09b → 09c → 09d). Write the goal-state test first per slice (repo TDD rule).
@@ -43,6 +43,24 @@ Four dependency-ordered slices; each is its own `feat/` branch + PR and must be 
   - Per ADR-006: note/share **response** schemas are intentionally deferred to 09c (authored with the
     web Query hooks that consume them).
 
+- [x] **09c · web data layer + state** (`feat/web-query-zustand`, stacked on 09b):
+  - [x] Authored note/share **response** schemas in `@yapper/schemas` (`note.ts`:
+        `noteSummary`/`sharedNoteSummary`/`noteMetadata`/`createNoteResponse`; `share.ts`:
+        `shareInfo`/`shareSummary`/`joinResponse`; `common.ts`: `noteAccess`, `authTokenResponse`).
+        Note: create-response is its **own** schema (api returns id/title/access/updatedAt only).
+  - [x] `lib/http.ts` (`apiFetch` + `ApiError`) and `lib/auth-token.ts` (`getAuthToken`, kept for the
+        socket provider); `Editor.tsx` imports the latter.
+  - [x] `lib/queries/notes.ts` (useNotes/useSharedNotes/useNote + create/delete/share/makePrivate
+        mutations with key-based invalidation) and `lib/queries/share.ts` (useJoinNote). All parse
+        responses with `@yapper/schemas`. **Deleted `lib/api.ts`.**
+  - [x] `lib/stores/editor.ts` (`useEditorStore`: status/identity/permission/privateKicked) +
+        `lib/stores/ui.ts` (`useUiStore`: share dialog). Rewired Editor (store + schema-parsed
+        stateless messages), dashboard, note page, ShareDialog, share page to hooks/stores.
+  - [x] Added `@yapper/schemas` dep to `apps/web`; Vitest alias for the workspace `.ts` package.
+  - [x] Tests (RED→GREEN): `lib/stores/editor.test.ts` (3) + `lib/queries/notes.test.tsx` (2,
+        mocked fetch → parsed result + schema-failure → query error). Web suite 10/10; repo
+        check-types 8/8; schemas 17/17.
+
 ## In Progress
 - (none)
 
@@ -50,13 +68,6 @@ Four dependency-ordered slices; each is its own `feat/` branch + PR and must be 
 - (none)
 
 ## Next Steps
-
-### 09c · web data layer + state  `feat/web-query-zustand`
-1. [ ] Extract `getAuthToken()` → `lib/auth-token.ts`; update `Editor.tsx`.
-2. [ ] Build `lib/queries/` hooks (notes/share) parsing with `@yapper/schemas`; wire invalidation.
-3. [ ] Delete `lib/api.ts`.
-4. [ ] Add `lib/stores/` (`useEditorStore`, `useUiStore`); move state out of Editor/ShareDialog.
-5. [ ] Tests (RED→GREEN): a query hook (mocked fetch → parsed) + a store transition.
 
 ### 09d · web UI migration to shadcn  `feat/web-shadcn-ui`
 1. [ ] Tailwind preflight ON globally; remove `.lp-root` reset.

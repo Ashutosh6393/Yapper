@@ -1,52 +1,66 @@
 "use client";
 
-import { useState } from "react";
-import { type NoteAccess, notesApi, type ShareInfo } from "../../../lib/api";
+import type { NoteAccess } from "@yapper/schemas";
+import { useEffect, useState } from "react";
+import { useMakePrivate, useShareNote } from "../../../lib/queries/notes";
+import { useUiStore } from "../../../lib/stores/ui";
 
-type ShareLevel = Exclude<NoteAccess, "private">;
+type ShareLevel = "view" | "edit";
+
+/** Current share link state shown in the panel (url is absent until sharing is (re)enabled). */
+interface ShareLink {
+  url?: string;
+  access: NoteAccess;
+}
 
 /**
  * Owner-only sharing control. Pick view/edit to enable sharing, copy the link, or make the note
  * private again (rotates the token and instantly disconnects all collaborators — slice 07).
+ * Open state lives in the UI store; share/make-private are TanStack Query mutations that invalidate
+ * the note metadata.
  */
 export function ShareDialog({
   noteId,
   initialAccess,
-  onAccessChange,
 }: {
   noteId: string;
   initialAccess: NoteAccess;
-  onAccessChange?: (newAccess: NoteAccess) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const open = useUiStore((s) => s.shareDialogOpen);
+  const openDialog = useUiStore((s) => s.openShareDialog);
+  const closeDialog = useUiStore((s) => s.closeShareDialog);
+
+  const shareNote = useShareNote(noteId);
+  const makePrivate = useMakePrivate(noteId);
+
   const [level, setLevel] = useState<ShareLevel>(initialAccess === "edit" ? "edit" : "view");
-  const [share, setShare] = useState<ShareInfo | null>(
+  const [share, setShare] = useState<ShareLink | null>(
     // If already shared, surface the current access so the panel shows the link state.
-    initialAccess !== "private" ? ({ access: initialAccess } as ShareInfo) : null,
+    initialAccess !== "private" ? { access: initialAccess } : null,
   );
-  const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Don't leak the open state into the next note page.
+  useEffect(() => () => closeDialog(), [closeDialog]);
+
+  const busy = shareNote.isPending || makePrivate.isPending;
+
   async function enableSharing() {
-    setBusy(true);
     try {
-      const info = await notesApi.share(noteId, level);
-      setShare(info);
-      onAccessChange?.(info.access);
-    } finally {
-      setBusy(false);
+      const info = await shareNote.mutateAsync(level);
+      setShare({ url: info.url, access: info.access });
+    } catch {
+      // mutation state holds the error; the panel stays open to retry
     }
   }
 
-  async function makePrivate() {
-    setBusy(true);
+  async function makeNotePrivate() {
     try {
-      await notesApi.makePrivate(noteId);
+      await makePrivate.mutateAsync();
       setShare(null);
-      setOpen(false);
-      onAccessChange?.("private");
-    } finally {
-      setBusy(false);
+      closeDialog();
+    } catch {
+      // keep the panel open on failure
     }
   }
 
@@ -59,7 +73,7 @@ export function ShareDialog({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} style={primaryBtn}>
+      <button type="button" onClick={openDialog} style={primaryBtn}>
         Share
       </button>
     );
@@ -69,7 +83,7 @@ export function ShareDialog({
     <div style={panel}>
       <div style={panelHeader}>
         <strong>Share this note</strong>
-        <button type="button" onClick={() => setOpen(false)} style={ghostBtn}>
+        <button type="button" onClick={closeDialog} style={ghostBtn}>
           ✕
         </button>
       </div>
@@ -100,7 +114,7 @@ export function ShareDialog({
       ) : null}
 
       {share ? (
-        <button type="button" onClick={makePrivate} disabled={busy} style={dangerBtn}>
+        <button type="button" onClick={makeNotePrivate} disabled={busy} style={dangerBtn}>
           {busy ? "Saving…" : "Make private"}
         </button>
       ) : null}

@@ -2,8 +2,9 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ApiError, shareApi } from "../../../lib/api";
 import { useSession } from "../../../lib/auth-client";
+import { ApiError } from "../../../lib/http";
+import { useJoinNote } from "../../../lib/queries/share";
 
 /**
  * Capability-link landing page (slice 06). Opening `/share/:token`:
@@ -16,6 +17,7 @@ export default function SharePage() {
   const router = useRouter();
   const token = useParams<{ token: string }>().token;
 
+  const joinNote = useJoinNote();
   const [error, setError] = useState<string | null>(null);
   // Join is a mutation; guard against the effect firing twice (React strict mode / re-renders).
   const joined = useRef(false);
@@ -29,8 +31,8 @@ export default function SharePage() {
     if (joined.current) return;
     joined.current = true;
 
-    shareApi
-      .join(token)
+    joinNote
+      .mutateAsync(token)
       .then(({ noteId }) => router.replace(`/notes/${noteId}`))
       .catch((err) => {
         setError(
@@ -39,7 +41,7 @@ export default function SharePage() {
             : "Something went wrong opening this link.",
         );
       });
-  }, [isPending, session, token, router]);
+  }, [isPending, session, token, router, joinNote]);
 
   return (
     <main style={main}>
