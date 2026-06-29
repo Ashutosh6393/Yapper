@@ -1,6 +1,6 @@
 # 09 · Frontend Stack Adoption — Implementation
 
-## Status: 09a done — 09b not started
+## Status: 09a done — 09b done (web response schemas → 09c)
 
 Four dependency-ordered slices; each is its own `feat/` branch + PR and must be merged in order
 (09a → 09b → 09c → 09d). Write the goal-state test first per slice (repo TDD rule).
@@ -24,6 +24,25 @@ Four dependency-ordered slices; each is its own `feat/` branch + PR and must be 
   - [x] Verified: `turbo check-types` green (8/8 workspaces), `web` production build green (6/6
         routes), existing web tests pass (5/5), Biome clean. No visual change.
 
+- [x] **09b · Contracts + backend validation** (`feat/schemas-zod-validation`, stacked on 09a):
+  - [x] `@yapper/schemas`: `share.ts` (`shareNoteBodySchema`/`ShareNoteBody`), `socket.ts`
+        (`socketHandshakeSchema`, `awarenessUserSchema`, `socketIdentityMessageSchema`,
+        `socketKickMessageSchema`, `socketServerMessageSchema` + types), barrel updated. TDD
+        RED→GREEN; 10 tests across 3 files, check-types clean.
+  - [x] `api`: `POST /:id/share` now parses `req.body` with `shareNoteBodySchema` → 400 on failure
+        (replaces the manual `level` check). `sharing.test.ts` 8/8 (incl. invalid-level → 400).
+  - [x] `socket`: `authorizeConnection` parses the handshake with `socketHandshakeSchema` and rejects
+        empty token/documentName before JWT verify. `index.ts`/`revoke.ts` type their outgoing
+        stateless payloads as `SocketServerMessage`. `auth.test.ts` 10/10 (2 new handshake cases,
+        RED→GREEN).
+  - [x] Added `@yapper/schemas` dep to `apps/api` + `apps/socket`. Repo `check-types` 8/8, Biome clean.
+  - [~] **Known flake (not 09b):** socket `realtime.test.ts` fails on Neon connectivity (pg-pool
+        connect errors / its 5s DB-derive poll). Independent of these changes — the test uses a
+        non-empty `"stub"` token + `noteId`, and the 09b edits are handshake validation + type-only
+        payloads. 23/24 socket tests passed in the full run.
+  - Per ADR-006: note/share **response** schemas are intentionally deferred to 09c (authored with the
+    web Query hooks that consume them).
+
 ## In Progress
 - (none)
 
@@ -31,12 +50,6 @@ Four dependency-ordered slices; each is its own `feat/` branch + PR and must be 
 - (none)
 
 ## Next Steps
-
-### 09b · Contracts + backend validation  `feat/schemas-zod-validation`
-1. [ ] Author `note.ts`/`share.ts`/`socket.ts`/`common.ts` schemas mirroring current api/socket shapes.
-2. [ ] `api`: parse body/params per route → 400 on failure; replace local types with `z.infer`.
-3. [ ] `socket`: validate handshake context + client messages; reject on failure.
-4. [ ] Tests (RED→GREEN): malformed body → 400 (api); malformed handshake rejected (socket).
 
 ### 09c · web data layer + state  `feat/web-query-zustand`
 1. [ ] Extract `getAuthToken()` → `lib/auth-token.ts`; update `Editor.tsx`.
@@ -61,3 +74,12 @@ Four dependency-ordered slices; each is its own `feat/` branch + PR and must be 
   foundation set. Not committed yet — awaiting review.
 - Next: 09b — author the real `@yapper/schemas` contracts by mirroring current `api`/`socket` shapes,
   then enforce Zod validation at those boundaries (test-first).
+- **09a committed** as `8705c57` on `feat/frontend-stack-foundation`; `feat/schemas-zod-validation`
+  branched off it for 09b.
+- **09b implemented** (TDD). See the 09b checklist above for verification. ADR-006 records the scope
+  call (enforce only consumed contracts; defer response schemas to 09c). Not committed yet — awaiting
+  review. Heads-up: `realtime.test.ts` is currently red due to Neon connectivity in this environment,
+  not the 09b changes.
+- Next: 09c — extract `getAuthToken()` to `lib/auth-token.ts`, build `lib/queries/` hooks (authoring
+  the note/share response schemas in `@yapper/schemas` as their consumer), add Zustand stores, delete
+  `lib/api.ts`.

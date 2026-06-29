@@ -46,6 +46,14 @@ test("a user with no permission is rejected", async () => {
   ).rejects.toThrow();
 });
 
+test("rejects a malformed handshake (empty token) before verifying", async () => {
+  await expect(authorizeConnection({ token: "", documentName: NOTE }, deps())).rejects.toThrow();
+});
+
+test("rejects a malformed handshake (empty documentName) before verifying", async () => {
+  await expect(authorizeConnection({ token: "t", documentName: "" }, deps())).rejects.toThrow();
+});
+
 test("rejects when the token fails verification", async () => {
   await expect(
     authorizeConnection(
