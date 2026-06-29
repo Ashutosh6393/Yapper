@@ -27,7 +27,7 @@ const CHECK_ROW = "flex items-start gap-3";
 const BULLET_TEXT = "text-[15px] leading-[1.5] text-[oklch(0.82_0_0)]";
 const BTN =
   "inline-flex cursor-pointer items-center gap-[10px] font-semibold transition-all duration-[180ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.97]";
-const HERO_GOOGLE = `${BTN} rounded-[10px] border-none bg-card px-[22px] py-[13px] text-[15px] tracking-[-0.2px] text-ink-fg shadow-[0_2px_8px_oklch(0_0_0_/_0.28)] hover:-translate-y-[2px] hover:shadow-[0_8px_24px_oklch(0_0_0_/_0.3)]`;
+const HERO_GOOGLE = `${BTN} rounded-[10px] border-none bg-surface px-[22px] py-[13px] text-[15px] tracking-[-0.2px] text-ink-fg shadow-[0_2px_8px_oklch(0_0_0_/_0.28)] hover:-translate-y-[2px] hover:shadow-[0_8px_24px_oklch(0_0_0_/_0.3)]`;
 const HERO_GITHUB = `${BTN} rounded-[10px] border-[1.5px] border-[oklch(1_0_0_/_0.14)] bg-transparent px-[22px] py-[13px] text-[15px] tracking-[-0.2px] text-fg hover:-translate-y-[2px] hover:border-[oklch(1_0_0_/_0.28)] hover:bg-[oklch(1_0_0_/_0.05)]`;
 const CTA_GOOGLE = `${BTN} rounded-[12px] border-none bg-ink-fg px-[26px] py-[14px] text-[16px] tracking-[-0.3px] text-paper shadow-[0_2px_8px_oklch(0_0_0_/_0.15)] hover:-translate-y-[2px] hover:shadow-[0_8px_24px_oklch(0_0_0_/_0.18)]`;
 const CTA_GITHUB = `${BTN} rounded-[12px] border-none bg-panel-2 px-[26px] py-[14px] text-[16px] tracking-[-0.3px] text-fg shadow-[0_2px_8px_oklch(0_0_0_/_0.12)] hover:-translate-y-[2px] hover:bg-[oklch(0.32_0_0)] hover:shadow-[0_8px_24px_oklch(0_0_0_/_0.18)]`;
@@ -448,7 +448,7 @@ export default function LandingPage() {
             <h2 className="mb-[16px] font-display text-[clamp(30px,3.5vw,44px)] font-extrabold leading-[1.08] tracking-[-1.5px] text-ink-fg [text-wrap:pretty]">
               Everything you need. Nothing you don&apos;t.
             </h2>
-            <p className="text-[17px] leading-[1.65] text-muted">
+            <p className="text-[17px] leading-[1.65] text-subtle">
               Built for teams who move fast but still need to know who&apos;s in the room and who
               can touch what.
             </p>
@@ -458,7 +458,7 @@ export default function LandingPage() {
               <div
                 key={f.title}
                 data-card=""
-                className="rounded-[14px] border border-line bg-card p-[28px] shadow-[0_1px_4px_oklch(0_0_0_/_0.04)] transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-[5px] hover:border-[oklch(0.7_0.02_48)] hover:shadow-[0_14px_36px_oklch(0_0_0_/_0.09)]"
+                className="rounded-[14px] border border-line bg-surface p-[28px] shadow-[0_1px_4px_oklch(0_0_0_/_0.04)] transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-[5px] hover:border-[oklch(0.7_0.02_48)] hover:shadow-[0_14px_36px_oklch(0_0_0_/_0.09)]"
               >
                 <div
                   className="mb-[16px] flex h-[42px] w-[42px] items-center justify-center rounded-[11px]"
@@ -471,7 +471,7 @@ export default function LandingPage() {
                 <div className="mb-[7px] font-display text-[16px] font-bold tracking-[-0.3px] text-ink-fg">
                   {f.title}
                 </div>
-                <p className="text-[14px] leading-[1.65] text-muted">{f.body}</p>
+                <p className="text-[14px] leading-[1.65] text-subtle">{f.body}</p>
               </div>
             ))}
           </div>
@@ -604,13 +604,13 @@ export default function LandingPage() {
             <h2 className="font-display text-[clamp(28px,3.2vw,42px)] font-extrabold leading-[1.08] tracking-[-1.5px] text-ink-fg [text-wrap:pretty]">
               Collab without the guesswork.
             </h2>
-            <p className="mt-[14px] text-[17px] leading-[1.65] text-muted">
+            <p className="mt-[14px] text-[17px] leading-[1.65] text-subtle">
               Most tools trust the link. Yapper trusts the person.
             </p>
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] items-start gap-[24px]">
             {/* Typical tools */}
-            <div className="rounded-[16px] border border-line bg-card p-[32px]">
+            <div className="rounded-[16px] border border-line bg-surface p-[32px]">
               <div className="mb-[24px] flex items-center gap-[10px] border-b border-[oklch(0.9_0_0)] pb-[20px]">
                 <div className="flex h-[36px] w-[36px] items-center justify-center rounded-[9px] bg-[oklch(0.94_0_0)]">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -834,7 +834,7 @@ export default function LandingPage() {
           <h2 className="mb-[18px] font-display text-[clamp(32px,4vw,52px)] font-extrabold leading-[1.06] tracking-[-2px] text-ink-fg [text-wrap:pretty]">
             Start writing. Together.
           </h2>
-          <p className="mb-[36px] text-[17px] leading-[1.65] text-muted [text-wrap:pretty]">
+          <p className="mb-[36px] text-[17px] leading-[1.65] text-subtle [text-wrap:pretty]">
             Sign in with your Google or GitHub account. Every note starts private. Share when
             you&apos;re ready — pull it back whenever you want.
           </p>

@@ -1,20 +1,22 @@
-/* Tailwind v4, imported WITHOUT preflight: the existing /login, /dashboard, and /notes pages
-   rely on browser-default element styling, so a global reset would regress them. Only the theme
-   and utilities layers are pulled in; the landing page gets a scoped reset below. */
-@layer theme, base, components, utilities;
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css" layer(utilities);
+/* Tailwind v4 with preflight ON (slice 09d). The app pages are shadcn/Tailwind; the landing page
+   keeps its own explicit brand tokens. `tw-animate-css` backs shadcn component animations, and the
+   `dark` variant toggles on the `.dark` class that next-themes sets on <html>. */
+@import "tailwindcss";
+@import "tw-animate-css";
+@custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* brand + surface palette (from the imported Yapper Landing Page design) */
+  /* brand + surface palette (from the imported Yapper Landing Page design). NOTE: `card`/`muted`
+     names are owned by shadcn's semantic tokens below, so the brand light card/text use
+     `surface`/`subtle` here (landing utilities: bg-surface, text-subtle). */
   --color-ink: oklch(0.1776 0 0); /* dark page background */
   --color-panel: oklch(0.2134 0 0); /* dark card/panel surface */
   --color-panel-2: oklch(0.252 0 0); /* dark title/toolbar surface */
   --color-fg: oklch(0.9491 0 0); /* primary text on dark */
   --color-paper: oklch(0.9821 0 0); /* light section background */
-  --color-card: oklch(0.9911 0 0); /* light card surface */
+  --color-surface: oklch(0.9911 0 0); /* light card surface (brand) */
   --color-ink-fg: oklch(0.2435 0 0); /* heading text on light */
-  --color-muted: oklch(0.5032 0 0); /* body text on light */
+  --color-subtle: oklch(0.5032 0 0); /* muted body text on light (brand) */
   --color-line: oklch(0.8822 0 0); /* light hairline border */
   --color-brand: oklch(0.4341 0.0392 41.9938); /* brand brown */
   --color-cream: oklch(0.9247 0.0524 66.1732); /* cream accent */
@@ -122,15 +124,85 @@
   }
 }
 
-/* Reset scoped to the landing page only (preflight is intentionally off globally). */
-.lp-root,
-.lp-root *,
-.lp-root *::before,
-.lp-root *::after {
-  box-sizing: border-box;
+/* shadcn semantic tokens for the app pages, mapped to the brand palette (ADR-007).
+   Light = paper/surface; dark = ink/panel. The landing page uses the brand tokens directly and is
+   unaffected by the theme class. */
+:root {
+  --radius: 0.625rem;
+  --background: var(--color-paper);
+  --foreground: var(--color-ink-fg);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-ink-fg);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-ink-fg);
+  --primary: var(--color-brand);
+  --primary-foreground: var(--color-paper);
+  --secondary: var(--color-cream);
+  --secondary-foreground: var(--color-ink-fg);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: var(--color-subtle);
+  --accent: var(--color-cream);
+  --accent-foreground: var(--color-ink-fg);
+  --destructive: var(--color-danger);
+  --border: var(--color-line);
+  --input: var(--color-line);
+  --ring: var(--color-brand);
 }
-.lp-root :where(h1, h2, h3, p, figure, ul, ol) {
-  margin: 0;
+
+.dark {
+  --background: var(--color-ink);
+  --foreground: var(--color-fg);
+  --card: var(--color-panel);
+  --card-foreground: var(--color-fg);
+  --popover: var(--color-panel-2);
+  --popover-foreground: var(--color-fg);
+  --primary: var(--color-cream);
+  --primary-foreground: var(--color-ink);
+  --secondary: var(--color-panel-2);
+  --secondary-foreground: var(--color-fg);
+  --muted: var(--color-panel-2);
+  --muted-foreground: oklch(0.72 0 0);
+  --accent: var(--color-panel-2);
+  --accent-foreground: var(--color-fg);
+  --destructive: var(--color-danger);
+  --border: oklch(1 0 0 / 0.12);
+  --input: oklch(1 0 0 / 0.15);
+  --ring: var(--color-cream);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
 }
 
 /* Decorative background overlays — too gnarly to express as Tailwind arbitrary values. */
