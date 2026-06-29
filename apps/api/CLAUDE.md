@@ -9,6 +9,7 @@ The `@yapper/api` app is the HTTP backend for Yapper. It runs Bun + Express, hos
 - **Auth**: `better-auth` `^1.3` — mounted via `toNodeHandler` / `fromNodeHeaders` from `better-auth/node`; config lives in the shared `@yapper/auth` package
 - **DB**: `@yapper/db` (Drizzle ORM `^0.44`, Postgres) — schema + client are in the shared package, NOT here
 - **Permissions / pub-sub**: `@yapper/permissions` — effective-permission derivation, Redis permission cache, and Redis publisher
+- **Validation**: `@yapper/schemas` (Zod) — request bodies / params are parsed against shared schemas at the route boundary; response shapes reuse the same contract types *(adopted in spec 09b)*
 - **Language**: TypeScript `5.9.2`, strict (extends `@yapper/typescript-config/node.json`)
 - **Tests**: `bun test` (Bun's built-in runner) + `supertest` for HTTP-level route tests
 - **Lint/format**: Biome (configured at repo root)
@@ -80,6 +81,7 @@ Monorepo-wide equivalents (`turbo dev`, `turbo test`, etc.) run from the repo ro
 - **Cross-app events**: access changes publish to Redis channels (`roleChangeChannel`, `revokeChannel`) via `redisPublisher` so socket instances disconnect/refresh affected clients. Code must tolerate `redisPublisher` being `null` (optional chaining) when `REDIS_URL` is unset.
 - **Capability links (ADR-002)**: share tokens are random URL-safe bearer tokens (`randomBytes(24).base64url`). Possession + a valid login grants access; opening a share link still mandates auth. Private notes are excluded from all token lookups.
 - **Better Auth mount order**: keep `app.all("/api/auth/*", toNodeHandler(auth))` above `express.json()` — the handler reads the raw body itself.
+- **Validate at the boundary with Zod (`@yapper/schemas`, ADR 09b)**: parse `req.body`/`req.params` with the shared schema for that route before touching the DB; on failure return `400` with the Zod issues. Import request/response **types** from `@yapper/schemas` (`z.infer`) instead of declaring local shapes — the same schema the `web` client validates against. Never hand-roll a body shape that already has a contract.
 - **Strict TS**: no `as any`. Prefer narrow types and the existing `authed()` pattern over casting.
 - Keep diffs small and match existing style (Biome-formatted).
 ```

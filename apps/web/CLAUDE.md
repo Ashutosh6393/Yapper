@@ -10,9 +10,15 @@ The Next.js frontend for Yapper, the collaborative real-time note app. It is the
 - **Yjs `^13.6`** + **`@hocuspocus/provider` `^2`** for CRDT sync and awareness (cursors/presence) over WebSocket.
 - **`@yapper/editor`** (workspace package) — shared TipTap schema/extensions via `buildExtensions(ydoc)`.
 - **Better Auth `^1.3` React client** (`better-auth/react`) for Google/GitHub OAuth and session.
-- **Tailwind CSS `^4`** via `@tailwindcss/postcss` (PostCSS). Used by the landing page only; other pages use inline styles.
+- **Tailwind CSS `^4`** via `@tailwindcss/postcss` (PostCSS), with **shadcn/ui** (Radix + Tailwind) as the component layer.
+- **TanStack Query** — owns all server state (note lists, metadata, mutations); the canonical data layer for talking to the `api` app.
+- **Zustand** — owns cross-component client/UI state (editor/collab UI, dialog/toast toggles). Not for server data.
+- **Motion** (`motion/react`) — opt-in animation (dialogs, transitions, landing reveals); not applied blanket.
+- **Zod** via **`@yapper/schemas`** (workspace package) — validates form input and parses API responses; shared contract types come from here.
 - **Biome** for lint/format (config at repo root `biome.json`: 2-space indent, double quotes, 100 line width).
 - **Vitest `^2.1` + Testing Library** (`@testing-library/react`, `user-event`, `jest-dom`) in a `jsdom` environment for unit tests.
+
+> **Migration in progress (`specs/09-frontend-stack`).** shadcn/ui + TanStack Query + Zustand + Motion + `@yapper/schemas` are the **target** stack. As of writing, `app/_landing/` uses Tailwind (preflight OFF) and `/login`, `/dashboard`, `/notes` still use inline `style` objects + the `lib/api.ts` fetch layer. Slices 09a–09d flip preflight ON globally, migrate those pages to shadcn, replace `lib/api.ts` with Query hooks, and add the Zustand stores. Check `specs/09-frontend-stack/implementation.md` before assuming a page is migrated, and match the convention of the area you touch.
 
 ## File Structure
 
@@ -32,8 +38,14 @@ apps/web/
 │   │   ├── Editor.tsx            # Hocuspocus/Yjs + TipTap editor; connection status, presence, permission, "made private" kick
 │   │   └── ShareDialog.tsx       # Owner-only sharing panel: set view/edit access, copy link, make private
 │   └── share/[token]/page.tsx    # Capability-link landing; logged out → /login?returnTo, logged in → join → /notes/:id
+├── components/
+│   └── ui/                       # [09a+] shadcn/ui generated primitives (button, dialog, …) — owned, editable
 ├── lib/
-│   ├── api.ts                    # Typed fetch wrapper for the `api` app; notesApi/shareApi, getAuthToken(); ApiError
+│   ├── api.ts                    # Typed fetch wrapper (notesApi/shareApi, ApiError) — [09c] being replaced by lib/queries
+│   ├── auth-token.ts             # [09c] getAuthToken() — kept after api.ts removal; the socket provider needs the JWT
+│   ├── query-client.ts           # [09a] TanStack QueryClient + provider mounted in layout.tsx
+│   ├── queries/                  # [09c] useQuery/useMutation hooks (notes, share) — the data layer
+│   ├── stores/                   # [09c] Zustand stores: editor/collab UI state, dialog/UI toggles
 │   └── auth-client.ts            # Better Auth React client (signIn/signOut/useSession); baseURL = api origin
 ├── next.config.ts                # Empty config
 ├── postcss.config.mjs            # Loads @tailwindcss/postcss
@@ -64,8 +76,11 @@ Env vars (read at runtime, with localhost fallbacks): `NEXT_PUBLIC_API_URL` (def
 - **Strict TypeScript; never use `as any`.** Existing code uses narrow casts (`as { user?: AwarenessUser }`) and `Exclude<>` types instead.
 - **Client-first.** Every interactive page is a client component and gates on `useSession()` from `lib/auth-client.ts`, redirecting to `/login` when logged out. There is no Next data fetching on the server.
 - **Cross-origin auth.** The Better Auth session cookie lives on the `api` origin. All requests use `credentials: "include"` so the cookie rides along — see `lib/api.ts` (`api()` helper) and `auth-client.ts` (`baseURL`).
-- **Use the typed API layer.** Add backend calls to `notesApi` / `shareApi` in `lib/api.ts` rather than calling `fetch` directly; non-2xx throws `ApiError` (check `err.status`).
+- **Data layer = TanStack Query (target).** Server state goes through `useQuery`/`useMutation` hooks in `lib/queries/`, which fetch from the `api` app and parse responses with `@yapper/schemas`. Mutations invalidate the relevant query keys. Do **not** put server data in Zustand or component state. *(Pre-09c code still calls `notesApi`/`shareApi` in `lib/api.ts`; when you touch a page, migrate it to a query hook.)* The token helper `getAuthToken()` survives the `lib/api.ts` removal — the socket provider depends on it.
+- **Client/UI state = Zustand.** Cross-component non-server state lives in `lib/stores/`: the editor/collab store (connection status, presence list, current permission, "made private" banner) and a UI store (dialog/toast toggles). Keep purely-local state in `useState`; reach for a store only when state must cross components.
+- **Validation = Zod via `@yapper/schemas`.** Validate form input and parse API responses with shared schemas; import contract types from `@yapper/schemas` rather than redefining shapes. Never trust an unparsed response.
+- **Animation = Motion, sparingly.** Use `import { motion } from "motion/react"` for dialogs, list/page transitions, and landing reveals where it adds clarity. Respect `prefers-reduced-motion`. Don't animate everything.
 - **Realtime editor (`Editor.tsx`).** A `HocuspocusProvider` connects to `NEXT_PUBLIC_SOCKET_URL` with `name: noteId` and a fresh JWT per (re)connect via `token: () => getAuthToken()`. Extensions come from `buildExtensions(provider.document)` plus `CollaborationCaret`. The socket pushes stateless messages: `identity` (sets the awareness user), `permission` (`none|view|edit` → toggles `editor.setEditable`), and a `kick` with reason `note_made_private` → shows the "Note made private by owner" banner and disconnects. Presence is derived from Yjs awareness states, deduped by user id.
 - **Permissions are server-driven.** The editor starts `editable: false` and only becomes editable when the socket sends `permission: "edit"`. Do not infer edit rights client-side.
-- **Styling is split.** The landing page (`_landing/`) uses Tailwind v4 utility classes + tokens defined in `globals.css`. Tailwind preflight is intentionally OFF globally (a reset is scoped to `.lp-root`), because `/login`, `/dashboard`, and `/notes` rely on browser-default styling via inline `style` objects. Match the existing approach for the area you touch.
+- **Styling — migrating to Tailwind + shadcn (preflight ON).** Target: preflight ON globally, every page styled with Tailwind utilities + shadcn/ui components (`components/ui/`). *Current state during 09:* preflight is still OFF (a reset scoped to `.lp-root`) and `/login`, `/dashboard`, `/notes` use inline `style` objects; the landing page already uses Tailwind. Slice 09d flips preflight ON and rewrites the inline-styled pages (login → dashboard → notes → ShareDialog), at which point the `.lp-root`-scoped reset is removed. Match whichever convention the page you're editing currently uses, and follow the spec's migration order.
 - **Tests** live next to source as `*.test.tsx` and mock `lib/auth-client` to assert OAuth flows. Per project rules, write a goal-state test before implementing a spec (see `app/_landing/LandingPage.test.tsx`).

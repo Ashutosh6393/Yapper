@@ -9,7 +9,7 @@ The Yjs WebSocket backend for Yapper. A Bun + Hocuspocus server that hosts the C
 - **Hocuspocus extensions**: `@hocuspocus/extension-database` ^2 (load/store doc state), `@hocuspocus/extension-redis` ^2.15.2 (cross-instance fanout), `@hocuspocus/transformer` ^2 (`TiptapTransformer`, Y.Doc → ProseMirror JSON server-side)
 - **Redis client**: `ioredis` ^5.4.1 (revoke/role-change pub/sub subscriber; also backs the redis extension)
 - **DB**: `drizzle-orm` ^0.44.2 via the shared `@yapper/db` client/schema (Postgres)
-- **Shared workspace packages**: `@yapper/auth` (JWKS JWT verify), `@yapper/permissions` (effective-permission derivation, cache helpers, revoke/role channels), `@yapper/editor` (shared schema + `extractTitlePreview` derivation)
+- **Shared workspace packages**: `@yapper/auth` (JWKS JWT verify), `@yapper/permissions` (effective-permission derivation, cache helpers, revoke/role channels), `@yapper/editor` (shared schema + `extractTitlePreview` derivation), `@yapper/schemas` (Zod schemas for the handshake context + client→server message payloads) *(adopted in spec 09b)*
 - **Language/Tooling**: TypeScript 5.9.2 (strict, extends `@yapper/typescript-config/node.json`), Biome (repo-root config), Vitest/`bun:test` for tests
 - **Dev dep**: `@hocuspocus/provider` ^2 (client used in integration tests)
 
@@ -58,6 +58,7 @@ Notes:
 - **Persistence**: One full-state Yjs blob per note in `note_doc` (`Y.encodeStateAsUpdate`), upserted on each debounced `onStoreDocument` (~2s default; `debounce`/`maxDebounce` injectable). `onStoreDocument` also derives `note.title/preview/updated_at` via `@hocuspocus/transformer` + `@yapper/editor` (no React/DOM on this path).
 - **Redis fanout**: Wired only when `REDIS_URL` is set, under prefix `yapper`. Multiple instances sharing one Redis stay in sync (doc updates + awareness). Single-instance dev and all tests run without Redis.
 - **Instant disconnect on private / role change**: `setupRevokeSubscriber` psubscribes the `revoke:{noteId}` and `role-change:{noteId}` channels (`@yapper/permissions`). `kickNonOwners` closes every non-owner connection on the doc — owners are never kicked. `note_made_private` sends a stateless `{ type: "kick", reason: "note_made_private" }` first (so the client shows the message and does not reconnect); `role_change` closes silently so the client reconnects and re-authorizes.
+- **Validate inbound payloads with Zod (`@yapper/schemas`, ADR 09b)**: parse anything the client controls — the handshake `context`/auth payload and any client→server message — against the shared schema before trusting it; reject the connection/message on failure. The server-authoritative identity push and `kick`/`identity`/`permission` message *shapes* are defined once in `@yapper/schemas` and reused by the `web` client, so both ends agree. This complements (does not replace) the JWT/permission checks.
 - **Testability**: `buildServer(options)` is kept separate from `listen()` so tests boot it in-process with injected `verifyToken`/`resolvePermission`/`loadNote`. The module starts listening only under `import.meta.main`.
 - **TypeScript**: strict; do **not** use `as any`. Context is read via typed casts to `ConnectionContext`.
 - **Biome** handles lint/format (repo-root `biome.json`); do not add Prettier.
