@@ -6,6 +6,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { buildExtensions } from "@yapper/editor";
 import { type AwarenessUser, socketServerMessageSchema } from "@yapper/schemas";
 import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { getAuthToken } from "../../../lib/auth-token";
 import { type ConnStatus, useEditorStore } from "../../../lib/stores/editor";
 
@@ -68,7 +69,12 @@ function BoundEditor({ provider }: { provider: HocuspocusProvider }) {
     extensions: [...buildExtensions(provider.document), CollaborationCaret.configure({ provider })],
     immediatelyRender: false,
     editable: false,
-    editorProps: { attributes: { style: editorAttrStyle } },
+    editorProps: {
+      attributes: {
+        class:
+          "note-prose min-h-80 rounded-lg border bg-card p-4 outline-none focus:border-primary/50",
+      },
+    },
   });
 
   useEffect(() => {
@@ -81,9 +87,9 @@ function BoundEditor({ provider }: { provider: HocuspocusProvider }) {
 
   if (status === "made_private") {
     return (
-      <div style={madePrivateBanner}>
-        <p style={{ margin: 0, fontWeight: 600 }}>Note made private by owner</p>
-        <p style={{ margin: "4px 0 0", fontSize: 14, color: "#555" }}>
+      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center">
+        <p className="font-semibold">Note made private by owner</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           The owner has stopped sharing this note.
         </p>
       </div>
@@ -92,9 +98,13 @@ function BoundEditor({ provider }: { provider: HocuspocusProvider }) {
 
   return (
     <div>
-      <div style={topRow}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <ConnectionBadge status={status} />
-        {permission === "view" && <span style={viewOnlyTag}>View only</span>}
+        {permission === "view" && (
+          <Badge variant="outline" className="text-amber-600">
+            View only
+          </Badge>
+        )}
         {editor && <Presence provider={provider} />}
       </div>
       <EditorContent editor={editor} />
@@ -123,10 +133,14 @@ function Presence({ provider }: { provider: HocuspocusProvider }) {
 
   if (users.length === 0) return null;
   return (
-    <div style={presence}>
+    <div className="inline-flex flex-wrap items-center gap-2">
       {users.map((u) => (
-        <span key={u.id} style={chip} title={u.name}>
-          <span style={{ ...dot, background: u.color }} />
+        <span
+          key={u.id}
+          title={u.name}
+          className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[13px]"
+        >
+          <span className="size-2 rounded-full" style={{ background: u.color }} />
           {u.name}
         </span>
       ))}
@@ -142,64 +156,24 @@ function ConnectionBadge({ status }: { status: ConnStatus }) {
     denied: "Access denied",
     made_private: "Note made private",
   };
-  const color: Record<ConnStatus, string> = {
-    connecting: "#b58900",
-    connected: "#2aa198",
-    disconnected: "#b58900",
-    denied: "#d33",
-    made_private: "#d33",
+  const text: Record<ConnStatus, string> = {
+    connecting: "text-amber-600",
+    connected: "text-emerald-600",
+    disconnected: "text-amber-600",
+    denied: "text-red-600",
+    made_private: "text-red-600",
+  };
+  const dot: Record<ConnStatus, string> = {
+    connecting: "bg-amber-500",
+    connected: "bg-emerald-500",
+    disconnected: "bg-amber-500",
+    denied: "bg-red-500",
+    made_private: "bg-red-500",
   };
   return (
-    <div style={{ ...badge, color: color[status] }}>
-      <span style={{ ...dot, background: color[status] }} />
+    <div className={`inline-flex items-center gap-1.5 text-[13px] ${text[status]}`}>
+      <span className={`size-2 rounded-full ${dot[status]}`} />
       {label[status]}
     </div>
   );
 }
-
-const topRow = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  flexWrap: "wrap" as const,
-};
-const presence = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  flexWrap: "wrap" as const,
-};
-const chip = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-  fontSize: 13,
-  padding: "2px 8px",
-  borderRadius: 999,
-  background: "#f3f3f3",
-} as const;
-const badge = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-  fontSize: 13,
-  marginBottom: 12,
-} as const;
-const dot = { width: 8, height: 8, borderRadius: "50%", display: "inline-block" } as const;
-const viewOnlyTag = {
-  fontSize: 12,
-  color: "#b58900",
-  border: "1px solid #e6d8a8",
-  borderRadius: 999,
-  padding: "1px 8px",
-} as const;
-const madePrivateBanner = {
-  padding: "24px 16px",
-  background: "#fff5f5",
-  border: "1px solid #ffc5c5",
-  borderRadius: 8,
-  textAlign: "center" as const,
-} as const;
-const editorAttrStyle =
-  "min-height: 320px; outline: none; border: 1px solid #e2e2e2; border-radius: 8px; padding: 16px;";

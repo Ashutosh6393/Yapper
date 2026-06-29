@@ -18,7 +18,7 @@ The Next.js frontend for Yapper, the collaborative real-time note app. It is the
 - **Biome** for lint/format (config at repo root `biome.json`: 2-space indent, double quotes, 100 line width).
 - **Vitest `^2.1` + Testing Library** (`@testing-library/react`, `user-event`, `jest-dom`) in a `jsdom` environment for unit tests.
 
-> **Migration status (`specs/09-frontend-stack`).** Done: 09a foundation, 09b Zod contracts/validation, **09c data layer** — TanStack Query hooks (`lib/queries/`) replaced `lib/api.ts` (deleted), and the Zustand stores (`lib/stores/`) are live. **Still pending: 09d styling** — `app/_landing/` uses Tailwind (preflight OFF) while `/login`, `/dashboard`, `/notes` still use inline `style` objects; 09d flips preflight ON and migrates those pages to shadcn. Check `specs/09-frontend-stack/implementation.md` before assuming a page's styling is migrated, and match the convention of the area you touch.
+> **Stack migration complete (`specs/09-frontend-stack`, 09a–09d).** TanStack Query hooks (`lib/queries/`) + Zustand stores (`lib/stores/`) are the data/state layer; all pages are **brand-themed shadcn/Tailwind** with Tailwind **preflight ON** and a **light/dark toggle** (`next-themes`). No inline `style` objects remain except genuinely dynamic values (e.g. a presence dot's per-user color). The marketing landing page keeps its own always-dark design via explicit brand tokens.
 
 ## File Structure
 
@@ -27,7 +27,7 @@ apps/web/
 ├── app/                          # Next.js App Router
 │   ├── layout.tsx                # Root layout; imports globals.css, sets metadata
 │   ├── page.tsx                  # "/" route — renders the landing page
-│   ├── globals.css               # Tailwind v4 import (no preflight) + theme tokens, keyframes, landing-only reset/overlays
+│   ├── globals.css               # Tailwind v4 (preflight ON) + brand @theme tokens, shadcn light/dark vars, base layer, .note-prose, landing overlays/keyframes
 │   ├── _landing/
 │   │   ├── LandingPage.tsx       # Logged-out marketing page (slice 08); Tailwind-styled, OAuth CTAs, scroll-reveal
 │   │   └── LandingPage.test.tsx  # Vitest unit test for the landing page goal state
@@ -39,7 +39,8 @@ apps/web/
 │   │   └── ShareDialog.tsx       # Owner-only sharing panel: set view/edit access, copy link, make private
 │   └── share/[token]/page.tsx    # Capability-link landing; logged out → /login?returnTo, logged in → join → /notes/:id
 ├── components/
-│   └── ui/                       # [09d] shadcn/ui generated primitives (button, dialog, …) — owned, editable
+│   ├── ui/                       # shadcn/ui primitives (button, card, input, select, popover, badge, skeleton) — owned, editable
+│   └── theme-toggle.tsx          # light/dark toggle (next-themes + lucide); used in dashboard + note headers
 ├── lib/
 │   ├── http.ts                   # apiFetch() low-level fetch (credentials, ApiError) — returns unknown; callers parse
 │   ├── auth-token.ts             # getAuthToken() for the socket handshake (kept apart from Query — provider drives it)
@@ -84,5 +85,5 @@ Env vars (read at runtime, with localhost fallbacks): `NEXT_PUBLIC_API_URL` (def
 - **Animation = Motion, sparingly.** Use `import { motion } from "motion/react"` for dialogs, list/page transitions, and landing reveals where it adds clarity. Respect `prefers-reduced-motion`. Don't animate everything.
 - **Realtime editor (`Editor.tsx`).** A `HocuspocusProvider` connects to `NEXT_PUBLIC_SOCKET_URL` with `name: noteId` and a fresh JWT per (re)connect via `token: () => getAuthToken()`. Extensions come from `buildExtensions(provider.document)` plus `CollaborationCaret`. The socket pushes stateless messages: `identity` (sets the awareness user), `permission` (`none|view|edit` → toggles `editor.setEditable`), and a `kick` with reason `note_made_private` → shows the "Note made private by owner" banner and disconnects. Presence is derived from Yjs awareness states, deduped by user id.
 - **Permissions are server-driven.** The editor starts `editable: false` and only becomes editable when the socket sends `permission: "edit"`. Do not infer edit rights client-side.
-- **Styling — migrating to Tailwind + shadcn (preflight ON).** Target: preflight ON globally, every page styled with Tailwind utilities + shadcn/ui components (`components/ui/`). *Current state during 09:* preflight is still OFF (a reset scoped to `.lp-root`) and `/login`, `/dashboard`, `/notes` use inline `style` objects; the landing page already uses Tailwind. Slice 09d flips preflight ON and rewrites the inline-styled pages (login → dashboard → notes → ShareDialog), at which point the `.lp-root`-scoped reset is removed. Match whichever convention the page you're editing currently uses, and follow the spec's migration order.
+- **Styling — Tailwind + shadcn, brand-themed, preflight ON.** Every app page uses Tailwind utilities + shadcn/ui components (`components/ui/`). Colors come from the **semantic tokens** (`bg-background`, `text-foreground`, `bg-card`, `text-muted-foreground`, `bg-primary`, `border`, `bg-destructive`, …), which `globals.css` maps to the brand palette for light (`:root`) and dark (`.dark`). Use those tokens, not hard-coded colors, so dark mode works. The brand's own light card/muted are renamed `surface`/`subtle` (the landing uses `bg-surface`/`text-subtle`); `card`/`muted` belong to shadcn. Dark mode is `next-themes` (`.dark` class on `<html>`); add a `ThemeToggle` to any new top-level page header. Editor (TipTap) content is styled via `.note-prose` in `globals.css`.
 - **Tests** live next to source as `*.test.tsx` and mock `lib/auth-client` to assert OAuth flows. Per project rules, write a goal-state test before implementing a spec (see `app/_landing/LandingPage.test.tsx`).

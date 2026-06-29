@@ -2,10 +2,14 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 import { useSession } from "../../../lib/auth-client";
 import { useDeleteNote, useNote } from "../../../lib/queries/notes";
 import { Editor } from "./Editor";
 import { ShareDialog } from "./ShareDialog";
+
+const SHELL = "mx-auto max-w-3xl px-6 py-12";
 
 export default function NotePage() {
   const { data: session, isPending } = useSession();
@@ -20,7 +24,7 @@ export default function NotePage() {
     if (!isPending && !session) router.replace("/login");
   }, [isPending, session, router]);
 
-  if (isPending) return <main style={main}>Loading…</main>;
+  if (isPending) return <main className={`${SHELL} text-muted-foreground`}>Loading…</main>;
   if (!session) return null;
 
   async function handleDelete() {
@@ -36,54 +40,48 @@ export default function NotePage() {
     router.push("/dashboard");
   }
 
-  if (noteQuery.isPending) return <main style={main}>Loading note…</main>;
+  if (noteQuery.isPending) {
+    return <main className={`${SHELL} text-muted-foreground`}>Loading note…</main>;
+  }
   const note = noteQuery.data;
   if (!note) {
     return (
-      <main style={main}>
-        <p>Note not found.</p>
-        <button type="button" onClick={() => router.push("/dashboard")} style={ghostBtn}>
+      <main className={SHELL}>
+        <p className="mb-4">Note not found.</p>
+        <Button type="button" variant="outline" onClick={() => router.push("/dashboard")}>
           Back to dashboard
-        </button>
+        </Button>
       </main>
     );
   }
 
   return (
-    <main style={main}>
-      <header style={header}>
-        <button type="button" onClick={() => router.push("/dashboard")} style={ghostBtn}>
+    <main className={SHELL}>
+      <header className="mb-6 flex items-center justify-between gap-3">
+        <Button type="button" variant="ghost" size="sm" onClick={() => router.push("/dashboard")}>
           ← My Notes
-        </button>
-        {note.isOwner ? (
-          <div style={{ display: "flex", gap: 8, position: "relative" }}>
-            <ShareDialog noteId={id} initialAccess={note.access} />
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={deleteNote.isPending}
-              style={dangerBtn}
-            >
-              {deleteNote.isPending ? "Deleting…" : "Delete"}
-            </button>
-          </div>
-        ) : null}
+        </Button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          {note.isOwner ? (
+            <>
+              <ShareDialog noteId={id} initialAccess={note.access} />
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleteNote.isPending}
+              >
+                {deleteNote.isPending ? "Deleting…" : "Delete"}
+              </Button>
+            </>
+          ) : null}
+        </div>
       </header>
 
-      <h1>{note.title}</h1>
+      <h1 className="mb-4 text-3xl font-semibold tracking-tight">{note.title}</h1>
       <Editor noteId={id} onMadePrivate={note.isOwner ? undefined : handleMadePrivate} />
     </main>
   );
 }
-
-const main = { fontFamily: "system-ui, sans-serif", padding: "3rem", maxWidth: 720 } as const;
-const header = { display: "flex", justifyContent: "space-between", marginBottom: 24 } as const;
-const ghostBtn = { padding: "6px 12px", borderRadius: 6, cursor: "pointer" } as const;
-const dangerBtn = {
-  padding: "6px 12px",
-  borderRadius: 6,
-  border: "1px solid #d33",
-  color: "#d33",
-  background: "transparent",
-  cursor: "pointer",
-} as const;

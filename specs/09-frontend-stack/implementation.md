@@ -1,6 +1,6 @@
 # 09 · Frontend Stack Adoption — Implementation
 
-## Status: 09a, 09b, 09c done — 09d (shadcn UI migration) next
+## Status: 09a–09d done (frontend stack migration complete; branch kept local, not pushed)
 
 Four dependency-ordered slices; each is its own `feat/` branch + PR and must be merged in order
 (09a → 09b → 09c → 09d). Write the goal-state test first per slice (repo TDD rule).
@@ -61,6 +61,19 @@ Four dependency-ordered slices; each is its own `feat/` branch + PR and must be 
         mocked fetch → parsed result + schema-failure → query error). Web suite 10/10; repo
         check-types 8/8; schemas 17/17.
 
+- [x] **09d · web UI migration to shadcn (brand-harmonized)** (`feat/web-shadcn-ui`, stacked on 09c):
+  - [x] Theme infra: preflight ON, brand `card`→`surface` / `muted`→`subtle` rename (landing updated),
+        shadcn light/dark semantic vars mapped to brand tokens, `@theme inline`, base layer,
+        `@custom-variant dark`; `.lp-root` reset removed.
+  - [x] `shadcn add` button/card/input/select/popover/badge/skeleton (+ radix-ui/cva/lucide-react);
+        `ThemeToggle` (next-themes), `ThemeProvider` in `providers.tsx`, `suppressHydrationWarning`.
+  - [x] Migrated `/login` (Card + Buttons), `/dashboard` (Cards/Skeleton/Badge/empty states +
+        ThemeToggle + Motion staggered list), `/notes/[id]` (header + ThemeToggle, destructive
+        Delete), `Editor` (status/presence Tailwind, editor paper frame, `.note-prose`), `ShareDialog`
+        (shadcn Popover + Select + Input/Button).
+  - [x] Verified: web `check-types` clean, web tests 10/10, production build green (6/6 routes),
+        Biome clean. **Manual visual pass still pending** (couldn't run against a live backend here).
+
 ## In Progress
 - (none)
 
@@ -68,6 +81,10 @@ Four dependency-ordered slices; each is its own `feat/` branch + PR and must be 
 - (none)
 
 ## Next Steps
+- [ ] **Manual visual pass / QA** of all four pages in light + dark against a running api/socket
+      (the one verification not possible in this environment), then merge the branch.
+
+#### 09d archive — original checklist
 
 ### 09d · web UI migration to shadcn (brand-harmonized)  `feat/web-shadcn-ui`
 Direction: ADR-007 (brand theme), ADR-008 (restyle + light polish), ADR-009 (share Popover),
