@@ -96,6 +96,77 @@ speculative empty store.
 
 ---
 
+## ADR-007: 09d app theme harmonizes with the landing brand (light)
+
+### Context
+`globals.css` already defines a brand `@theme` (brand brown, cream, paper/card light surfaces, SF
+Pro) built for the landing page. shadcn ships a neutral-gray default. The app pages need a direction.
+
+### Options Considered
+1. **Harmonize with the landing brand (light)** — map shadcn tokens to the existing brand palette;
+   light paper surfaces, brand-brown primary, cream accent. Cohesive; reuses tokens; readable editor.
+2. **shadcn default neutral** — fast/conventional, but visually disconnected from the landing.
+3. **Dark app (match landing's dark marketing theme)** — striking but poor for long-form writing.
+
+### Decision
+**Option 1.** Map shadcn's semantic CSS variables onto the brand `@theme` tokens; **light mode only,
+no dark-mode toggle** (YAGNI). The landing keeps its dark theme.
+
+### Consequences
+- One `@theme inline` mapping block + shadcn base layer in `globals.css`.
+- The landing must be re-verified under preflight ON (it already uses these tokens — low risk).
+
+---
+
+## ADR-008: 09d scope is "restyle + light polish", not a UX redesign
+
+### Context
+Migrating to shadcn could be a 1:1 restyle, a restyle with modest polish, or a fuller UX redesign.
+
+### Decision
+**Restyle + light polish**: brand-themed shadcn components plus modest layout/spacing/hierarchy
+improvements (dashboard cards, cleaner editor header, real empty states). Routes, flows, and page
+structure stay the same. A fuller UX redesign (sidebar nav, richer toolbar) is explicitly out of
+scope — a future slice if wanted.
+
+### Consequences
+- Existing behavior tests remain valid parity guards.
+- Bounded, reviewable diffs per page.
+
+---
+
+## ADR-009: ShareDialog becomes a shadcn Popover (not a modal Dialog)
+
+### Context
+The share control is currently an absolute-positioned panel anchored under the Share button.
+shadcn offers `Popover` (anchored, non-blocking) or `Dialog` (centered modal, blocking).
+
+### Decision
+**Popover**, anchored to the Share button — preserves today's contextual, non-blocking feel with the
+least behavior change. Keeps the `useUiStore` open state; adds Motion fade/scale on open.
+
+### Consequences
+- `useUiStore.shareDialogOpen` continues to drive open/close (now via Popover `open`/`onOpenChange`).
+- Despite the "dialog" name, the component is a popover — the store/name are kept for continuity.
+
+---
+
+## ADR-010: Light Motion only; no toast system
+
+### Context
+Motion is opt-in (ADR-005). The UI store mentioned toasts, but the app currently surfaces errors
+inline with no toast UI.
+
+### Decision
+Add Motion to just the share popover (fade/scale) and a subtle staggered dashboard list fade-in, both
+`prefers-reduced-motion`-gated. **No toast/Sonner** in 09d — error states stay inline (YAGNI).
+
+### Consequences
+- Minimal animation surface; reviewers can reject gratuitous motion.
+- If toasts are wanted later, they get their own slice + `useUiStore` extension.
+
+---
+
 ## ADR-006: 09b scope — enforce only contracts with a real consumer; defer response schemas
 
 ### Context

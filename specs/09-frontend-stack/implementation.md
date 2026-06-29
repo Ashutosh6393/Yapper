@@ -69,11 +69,17 @@ Four dependency-ordered slices; each is its own `feat/` branch + PR and must be 
 
 ## Next Steps
 
-### 09d · web UI migration to shadcn  `feat/web-shadcn-ui`
-1. [ ] Tailwind preflight ON globally; remove `.lp-root` reset.
-2. [ ] Migrate `/login` → `/dashboard` → `/notes/[id]` → `ShareDialog` to Tailwind + shadcn.
-3. [ ] Add Motion to the share dialog + one list/page transition (reduced-motion guarded).
-4. [ ] Verify: existing page tests green; `biome check` clean; manual visual pass.
+### 09d · web UI migration to shadcn (brand-harmonized)  `feat/web-shadcn-ui`
+Direction: ADR-007 (brand light theme), ADR-008 (restyle + light polish), ADR-009 (share Popover),
+ADR-010 (light Motion, no toasts). See `design.md` §09d.
+1. [ ] Theme infra: preflight ON in `globals.css`, remove `.lp-root` reset, add shadcn CSS vars
+       mapped to brand `@theme` tokens (light) + `@theme inline` + base layer. Verify landing survives.
+2. [ ] `shadcn add` button/card/input/select/popover/badge/skeleton (pulls cva/lucide/tw-animate-css).
+3. [ ] Migrate `/login` → `/dashboard` (cards/skeleton/empty states) → `/notes/[id]` (header,
+       badges, editor paper frame + prose styles) → `ShareDialog` (Popover + Select + Input/Button).
+4. [ ] Motion: share Popover fade/scale + dashboard list staggered fade-in (reduced-motion guarded).
+5. [ ] Verify per page: existing tests green, `check-types` + `build` + `biome check` clean; manual
+       visual pass (follow-up).
 
 ## Session Notes
 

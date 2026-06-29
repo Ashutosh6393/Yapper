@@ -69,13 +69,58 @@ Replace the fetch layer and introduce stores.
   state.
 - Verify (TDD): a query hook test (mocked fetch → parsed result) and a store test; pages still work.
 
-### 09d · web UI migration to shadcn
-Flip styling and migrate pages, smallest→largest, one per commit.
-- Turn Tailwind **preflight ON** globally; remove the `.lp-root` reset.
-- Migrate `/login` → `/dashboard` → `/notes/[id]` → `ShareDialog` to Tailwind utilities + shadcn
-  components (Button, Dialog, Input, etc.). Add Motion to the share dialog + one list transition.
-- Verify: each migrated page's existing test stays green (tests are behavior-based / styling
-  agnostic); manual visual check; `biome check` clean.
+### 09d · web UI migration to shadcn (brand-harmonized)
+Restyle the app pages to brand-themed shadcn, with light layout polish. Behavior unchanged.
+Direction decided in the 09d brainstorm — see ADR-007..010.
+
+**Theme infrastructure**
+- Turn Tailwind **preflight ON** globally in `globals.css`; remove the `.lp-root`-scoped reset.
+- Add shadcn semantic CSS variables (`--background`, `--foreground`, `--card`, `--card-foreground`,
+  `--primary`, `--primary-foreground`, `--secondary`, `--muted`, `--accent`, `--border`, `--input`,
+  `--ring`, `--destructive`, `--radius`) **mapped to the existing brand `@theme` tokens**: light
+  `paper`/`card` surfaces, brand brown as `--primary`, cream as `--accent`, `--danger` as
+  `--destructive`, SF Pro via `--font-sans`/`--font-display`. Wire them with one `@theme inline`
+  block so `bg-background`/`text-foreground`/etc. resolve. Add the shadcn base layer.
+- Install per-component deps via `shadcn add` (pulls `class-variance-authority`, `lucide-react`,
+  `tw-animate-css`).
+- **Light mode only — no dark-mode toggle** (YAGNI). The landing page keeps its current dark theme
+  (it already consumes these tokens; verify it survives preflight ON).
+
+**Components** (generated into `components/ui/` via `shadcn add`)
+`button`, `card`, `input`, `select`, `popover`, `badge`, `skeleton`. No toast/Sonner (errors stay
+inline — YAGNI).
+
+**Per-page changes** (routes/flows unchanged)
+- `/login` — centered `Card`, OAuth `Button`s (primary / outline), brand wordmark.
+- `/dashboard` — header + "New note" `Button`; notes as `Card`s (title/preview/timestamp), brand
+  `Badge` for shared access; `Skeleton` while loading; real empty states.
+- `/notes/[id]` — cleaner header (back `Button`, owner `Share`/`Delete`); connection status +
+  "view only" as `Badge`s; editor gets a `Card`-like paper frame + minimal prose styles so preflight
+  doesn't strip TipTap content defaults.
+- `ShareDialog` — shadcn **`Popover`** anchored to the Share button (keeps `useUiStore` open state);
+  `Select` (view/edit), `Input`+`Button` (link/copy), destructive `Button` (make private).
+
+**Motion** (opt-in, `motion/react`, `prefers-reduced-motion`-gated)
+- Share `Popover` content fade/scale on open.
+- Dashboard note list: subtle staggered fade-in.
+
+**Migration order & commits** (one branch `feat/web-shadcn-ui`)
+Theme infra + `shadcn add` first, then migrate **login → dashboard → notes/[id] → ShareDialog**, one
+commit each. Intermediate commits look unstyled (preflight is global); only the merged branch is the
+finished state — expected and acceptable on a feature branch.
+
+**Verify**
+- Existing behavior tests stay green (`LandingPage.test.tsx`, `notes.test.tsx`, `editor.test.ts`) —
+  adjust a test only if a component swap changes a queried role/text.
+- Per page: `check-types` + production `build` + `biome check` clean; manual visual pass (noted as a
+  follow-up; can't run against the live backend in this environment).
+
+**Risks**
+- Global preflight flip restyles everything at once → migrate all four pages on one branch + visual
+  pass.
+- Landing regression under preflight ON → re-run its build/test and eyeball (low risk — already uses
+  the brand tokens).
+- TipTap content losing prose defaults under preflight → add minimal editor prose styles.
 
 ## Test plan
 
