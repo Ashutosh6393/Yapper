@@ -1,0 +1,198 @@
+/* Tailwind v4, imported WITHOUT preflight: the existing /login, /dashboard, and /notes pages
+   rely on browser-default element styling, so a global reset would regress them. Only the theme
+   and utilities layers are pulled in; the landing page gets a scoped reset below. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme {
+  /* brand + surface palette (from the imported Yapper Landing Page design) */
+  --color-ink: oklch(0.1776 0 0); /* dark page background */
+  --color-panel: oklch(0.2134 0 0); /* dark card/panel surface */
+  --color-panel-2: oklch(0.252 0 0); /* dark title/toolbar surface */
+  --color-fg: oklch(0.9491 0 0); /* primary text on dark */
+  --color-paper: oklch(0.9821 0 0); /* light section background */
+  --color-card: oklch(0.9911 0 0); /* light card surface */
+  --color-ink-fg: oklch(0.2435 0 0); /* heading text on light */
+  --color-muted: oklch(0.5032 0 0); /* body text on light */
+  --color-line: oklch(0.8822 0 0); /* light hairline border */
+  --color-brand: oklch(0.4341 0.0392 41.9938); /* brand brown */
+  --color-cream: oklch(0.9247 0.0524 66.1732); /* cream accent */
+  --color-ablue: #4ea8ff;
+  --color-aorange: #ff7b4e;
+  --color-agreen: #22d3a5;
+  --color-danger: #f87070;
+
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 2s ease-out infinite;
+
+  @keyframes caret-blink {
+    0%,
+    44% {
+      opacity: 1;
+    }
+    50%,
+    94% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  @keyframes cursor-jess {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    25% {
+      transform: translate(3px, -2px);
+    }
+    55% {
+      transform: translate(5px, 2px);
+    }
+    80% {
+      transform: translate(1px, -1px);
+    }
+  }
+  @keyframes cursor-mira {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    30% {
+      transform: translate(-3px, 3px);
+    }
+    60% {
+      transform: translate(-5px, -2px);
+    }
+    90% {
+      transform: translate(1px, 2px);
+    }
+  }
+  @keyframes cursor-alex {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    20% {
+      transform: translate(4px, 1px);
+    }
+    55% {
+      transform: translate(1px, -3px);
+    }
+    85% {
+      transform: translate(-2px, 2px);
+    }
+  }
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    45% {
+      transform: translateY(-10px);
+    }
+    75% {
+      transform: translateY(-5px);
+    }
+  }
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+    75%,
+    100% {
+      transform: scale(2.2);
+      opacity: 0;
+    }
+  }
+}
+
+/* Reset scoped to the landing page only (preflight is intentionally off globally). */
+.lp-root,
+.lp-root *,
+.lp-root *::before,
+.lp-root *::after {
+  box-sizing: border-box;
+}
+.lp-root :where(h1, h2, h3, p, figure, ul, ol) {
+  margin: 0;
+}
+
+/* Decorative background overlays — too gnarly to express as Tailwind arbitrary values. */
+.lp-hero-glow {
+  background:
+    radial-gradient(
+      ellipse 65% 70% at 80% 50%,
+      oklch(0.4341 0.0392 41.9938 / 0.14) 0%,
+      transparent 60%
+    ),
+    radial-gradient(ellipse 45% 55% at 10% 72%, oklch(0.6731 0.15 175 / 0.07) 0%, transparent 50%);
+}
+.lp-doc-glow {
+  background: radial-gradient(
+    ellipse 90% 80% at 50% 50%,
+    oklch(0.4341 0.0392 41.9938 / 0.14) 0%,
+    transparent 70%
+  );
+}
+.lp-presence-glow {
+  background: radial-gradient(
+    ellipse 55% 60% at 90% 50%,
+    rgba(78, 168, 255, 0.09) 0%,
+    transparent 55%
+  );
+}
+.lp-private-glow {
+  background: radial-gradient(
+    ellipse 60% 70% at 20% 50%,
+    oklch(0.4341 0.0392 41.9938 / 0.12) 0%,
+    transparent 55%
+  );
+}
+.lp-grid {
+  background-image:
+    linear-gradient(oklch(1 0 0 / 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.lp-grid-faint {
+  background-image:
+    linear-gradient(oklch(1 0 0 / 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.015) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Scroll reveal — JS toggles `.lp-in` (only when motion is allowed). */
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition:
+    opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lp-card-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lp-in {
+  opacity: 1;
+  transform: none;
+}
