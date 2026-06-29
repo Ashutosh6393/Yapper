@@ -83,11 +83,15 @@ Direction decided in the 09d brainstorm — see ADR-007..010.
   block so `bg-background`/`text-foreground`/etc. resolve. Add the shadcn base layer.
 - Install per-component deps via `shadcn add` (pulls `class-variance-authority`, `lucide-react`,
   `tw-animate-css`).
-- **Light mode only — no dark-mode toggle** (YAGNI). The landing page keeps its current dark theme
-  (it already consumes these tokens; verify it survives preflight ON).
+- **Light + dark via a toggle** (ADR-011, `next-themes`): `@custom-variant dark (&:is(.dark *))`, a
+  `:root` (light → paper/card) block and a `.dark` (→ ink/panel) block, both mapping to brand tokens.
+  Wrap the app in `ThemeProvider` (in `app/providers.tsx`, `attribute="class"`, `defaultTheme="system"`,
+  `enableSystem`); add `suppressHydrationWarning` to `<html>`. The landing page stays always-dark
+  (uses explicit tokens, not semantic vars; verify it survives preflight ON).
 
 **Components** (generated into `components/ui/` via `shadcn add`)
-`button`, `card`, `input`, `select`, `popover`, `badge`, `skeleton`. No toast/Sonner (errors stay
+`button`, `card`, `input`, `select`, `popover`, `badge`, `skeleton`, plus a small `ThemeToggle`
+(lucide sun/moon + `useTheme`) in the dashboard + note-page headers. No toast/Sonner (errors stay
 inline — YAGNI).
 
 **Per-page changes** (routes/flows unchanged)

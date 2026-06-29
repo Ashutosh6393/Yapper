@@ -70,15 +70,21 @@ Four dependency-ordered slices; each is its own `feat/` branch + PR and must be 
 ## Next Steps
 
 ### 09d · web UI migration to shadcn (brand-harmonized)  `feat/web-shadcn-ui`
-Direction: ADR-007 (brand light theme), ADR-008 (restyle + light polish), ADR-009 (share Popover),
-ADR-010 (light Motion, no toasts). See `design.md` §09d.
+Direction: ADR-007 (brand theme), ADR-008 (restyle + light polish), ADR-009 (share Popover),
+ADR-010 (light Motion, no toasts), ADR-011 (dark mode via next-themes). See `design.md` §09d.
+**Keep the whole branch local — do not push until 09d is visually complete (user request).**
 1. [ ] Theme infra: preflight ON in `globals.css`, remove `.lp-root` reset, add shadcn CSS vars
-       mapped to brand `@theme` tokens (light) + `@theme inline` + base layer. Verify landing survives.
+       (`:root` light + `.dark` dark) mapped to brand `@theme` tokens + `@theme inline` + base layer +
+       `@custom-variant dark`. Verify landing survives.
 2. [ ] `shadcn add` button/card/input/select/popover/badge/skeleton (pulls cva/lucide/tw-animate-css).
-3. [ ] Migrate `/login` → `/dashboard` (cards/skeleton/empty states) → `/notes/[id]` (header,
-       badges, editor paper frame + prose styles) → `ShareDialog` (Popover + Select + Input/Button).
-4. [ ] Motion: share Popover fade/scale + dashboard list staggered fade-in (reduced-motion guarded).
-5. [ ] Verify per page: existing tests green, `check-types` + `build` + `biome check` clean; manual
+3. [ ] Dark mode: add `next-themes`, wrap `ThemeProvider` in `app/providers.tsx`
+       (`attribute="class"`, `defaultTheme="system"`, `enableSystem`), `suppressHydrationWarning` on
+       `<html>`, build a `ThemeToggle` (sun/moon).
+4. [ ] Migrate `/login` → `/dashboard` (cards/skeleton/empty states + ThemeToggle) → `/notes/[id]`
+       (header + ThemeToggle, badges, editor paper frame + prose styles) → `ShareDialog`
+       (Popover + Select + Input/Button).
+5. [ ] Motion: share Popover fade/scale + dashboard list staggered fade-in (reduced-motion guarded).
+6. [ ] Verify per page: existing tests green, `check-types` + `build` + `biome check` clean; manual
        visual pass (follow-up).
 
 ## Session Notes

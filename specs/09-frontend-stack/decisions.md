@@ -109,11 +109,14 @@ Pro) built for the landing page. shadcn ships a neutral-gray default. The app pa
 3. **Dark app (match landing's dark marketing theme)** — striking but poor for long-form writing.
 
 ### Decision
-**Option 1.** Map shadcn's semantic CSS variables onto the brand `@theme` tokens; **light mode only,
-no dark-mode toggle** (YAGNI). The landing keeps its dark theme.
+**Option 1.** Map shadcn's semantic CSS variables onto the brand `@theme` tokens. **Support light +
+dark via a user toggle** (see ADR-011): light = paper/card surfaces; dark = the brand ink/panel
+surfaces. The marketing landing page stays always-dark (it uses the explicit brand tokens directly,
+not the semantic light/dark vars, so the toggle does not affect it).
 
 ### Consequences
-- One `@theme inline` mapping block + shadcn base layer in `globals.css`.
+- Two var blocks in `globals.css`: `:root` (light) and `.dark` (dark), both → brand tokens; one
+  `@theme inline` mapping + shadcn base layer.
 - The landing must be re-verified under preflight ON (it already uses these tokens — low risk).
 
 ---
@@ -148,6 +151,30 @@ least behavior change. Keeps the `useUiStore` open state; adds Motion fade/scale
 ### Consequences
 - `useUiStore.shareDialogOpen` continues to drive open/close (now via Popover `open`/`onOpenChange`).
 - Despite the "dialog" name, the component is a popover — the store/name are kept for continuity.
+
+---
+
+## ADR-011: Dark mode via `next-themes` (class strategy) with a toggle
+
+### Context
+ADR-007 maps shadcn vars to brand tokens for both light and dark. We need a way to switch themes
+without a flash-of-wrong-theme on load, in a Next.js App Router app whose pages are client components.
+
+### Options Considered
+1. **`next-themes`** — idiomatic for Next.js; `attribute="class"` toggles `.dark` on `<html>`, injects
+   a pre-paint script (no FOUC), persists choice, supports `system`. Small, well-worn dependency.
+2. **Hand-rolled Zustand + localStorage** — reuses our store, but we must solve SSR FOUC ourselves
+   (inline script) and re-implement system-preference handling. More code, easy to get subtly wrong.
+
+### Decision
+**Option 1 — `next-themes`.** Wrap the app in `ThemeProvider` (inside `app/providers.tsx`, alongside
+the Query provider) with `attribute="class"`, `defaultTheme="system"`, `enableSystem`. Add a small
+`ThemeToggle` (lucide sun/moon, `useTheme`) in the dashboard + note-page headers.
+
+### Consequences
+- Adds `next-themes`; `globals.css` needs the `.dark` variant (`@custom-variant dark`) + dark var block.
+- `suppressHydrationWarning` on `<html>` in the root layout (next-themes mutates the class pre-paint).
+- The landing page is unaffected (explicit tokens, not semantic vars) and remains dark.
 
 ---
 
