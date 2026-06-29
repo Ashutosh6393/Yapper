@@ -1,4 +1,5 @@
 import type { Permission } from "@yapper/permissions";
+import { socketHandshakeSchema } from "@yapper/schemas";
 import { colorFromUserId } from "./identity";
 
 /**
@@ -42,10 +43,12 @@ export async function authorizeConnection(
   params: { token: string; documentName: string },
   deps: AuthorizeDeps,
 ): Promise<AuthorizeResult> {
-  const { userId, name } = await deps.verifyToken(params.token);
+  // Reject a malformed handshake (missing/empty token or documentName) before doing any work.
+  const { token, documentName } = socketHandshakeSchema.parse(params);
+  const { userId, name } = await deps.verifyToken(token);
   const [permission, noteData] = await Promise.all([
-    deps.resolvePermission(params.documentName, userId),
-    deps.loadNote(params.documentName),
+    deps.resolvePermission(documentName, userId),
+    deps.loadNote(documentName),
   ]);
   if (permission === "none") throw new Error("Forbidden: no access to this note");
   return {

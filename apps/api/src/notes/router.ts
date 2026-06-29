@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { db, note, noteCollaborator } from "@yapper/db";
 import { bustNotePermissions, revokeChannel, roleChangeChannel } from "@yapper/permissions";
+import { shareNoteBodySchema } from "@yapper/schemas";
 import { and, desc, eq, ne } from "drizzle-orm";
 import { type Request, type RequestHandler, type Response, Router } from "express";
 import { permCache, resolvePerm } from "../permissions";
@@ -147,11 +148,14 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
     "/:id/share",
     authed(async (req, res, userId) => {
       const { id } = req.params;
-      const level = (req.body as { level?: unknown }).level;
-      if (level !== "view" && level !== "edit") {
-        res.status(400).json({ error: "level must be 'view' or 'edit'" });
+      const parsed = shareNoteBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res
+          .status(400)
+          .json({ error: "level must be 'view' or 'edit'", issues: parsed.error.issues });
         return;
       }
+      const { level } = parsed.data;
       if (!id) {
         res.status(404).json({ error: "Not found" });
         return;

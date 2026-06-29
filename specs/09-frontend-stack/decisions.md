@@ -96,6 +96,35 @@ speculative empty store.
 
 ---
 
+## ADR-006: 09b scope — enforce only contracts with a real consumer; defer response schemas
+
+### Context
+Slice 09b authors `@yapper/schemas` and enforces validation. The temptation is to author every
+request/response/message shape up front. But TDD/simplicity says don't write schemas for shapes that
+have no consumer yet — they drift and can't be verified.
+
+### Decision
+09b authors and **enforces** only the shapes with a real producer/consumer today:
+- `shareNoteBodySchema` — parsed by the api `POST /:id/share` route (replaces the manual `level` check).
+- `socketHandshakeSchema` — parsed at the top of `authorizeConnection` (rejects empty token/
+  documentName before JWT verification). This is the socket's inbound trust boundary; Yjs/awareness
+  traffic is handled by the Hocuspocus protocol, not custom JSON, so there are no other client→server
+  messages to validate.
+- `socketServerMessageSchema` (identity + kick union) — the socket now **types** its outgoing
+  stateless payloads with this (compile-time guarantee); the web client adopts it for parsing in 09c.
+
+Note **response** schemas (note metadata, list rows, share/join responses) are deferred to **09c**,
+authored next to the TanStack Query hooks that consume them — mirroring the live api selects at the
+point of use rather than speculatively.
+
+### Consequences
+- 09b stays tightly scoped and every schema is exercised by a test or a typed call site.
+- 09c authors response schemas + web parsing together (no orphan contracts).
+- Param validation (`:id`, `:token`) is left as the existing presence checks — always-string path
+  params with no meaningful shape to add.
+
+---
+
 ## ADR-005: Motion (`motion/react`), opt-in
 
 ### Context

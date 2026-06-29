@@ -2,6 +2,7 @@ import { Database } from "@hocuspocus/extension-database";
 import { type Hocuspocus, Server } from "@hocuspocus/server";
 import { verifyJwt } from "@yapper/auth";
 import { buildResolveDeps, loadNote, resolvePermission } from "@yapper/permissions";
+import type { SocketServerMessage } from "@yapper/schemas";
 import type IORedis from "ioredis";
 import { type AuthorizeDeps, authorizeConnection, type ConnectionContext } from "./auth";
 import { awarenessUserFor } from "./identity";
@@ -78,12 +79,12 @@ export function buildServer(options: BuildServerOptions = {}): Hocuspocus {
     // the client toggle editability; the server still enforces read-only regardless.
     async connected({ context, connectionInstance }) {
       const { userId, name, permission } = context as ConnectionContext;
-      const payload = JSON.stringify({
+      const message: SocketServerMessage = {
         type: "identity",
         user: awarenessUserFor({ userId, name }),
         permission,
-      });
-      connectionInstance.sendStateless(payload);
+      };
+      connectionInstance.sendStateless(JSON.stringify(message));
     },
     async onStoreDocument({ documentName, document }) {
       await saveDerivedMetadata(documentName, document);
