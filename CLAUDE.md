@@ -33,22 +33,28 @@ Architecture is a 3-app Turborepo (`web`, `api`, `socket`) plus shared `packages
 
 - **Monorepo**: Turborepo + Bun workspaces (package manager: Bun)
 - **Apps**:
-  - `apps/web` — Next.js + TypeScript (strict), Tailwind CSS, TipTap editor, Yjs, `@hocuspocus/provider`, Better Auth React client
-  - `apps/api` — Bun + Express + TypeScript; hosts Better Auth handler (`/api/auth/*`), notes & sharing REST, owns note metadata + collaborator records
-  - `apps/socket` — Bun + Hocuspocus (Yjs WebSocket backend); `@hocuspocus/extension-redis` (cross-instance fanout) + `@hocuspocus/extension-database` (persistence); enforces auth/permissions on connect
+  - `apps/web` — Next.js + TypeScript (strict), Tailwind CSS + **shadcn/ui** components, **TanStack Query** (server state), **Zustand** (client/UI state), **Motion** (`motion/react`, opt-in animation), TipTap editor, Yjs, `@hocuspocus/provider`, Better Auth React client
+  - `apps/api` — Bun + Express + TypeScript; hosts Better Auth handler (`/api/auth/*`), notes & sharing REST, owns note metadata + collaborator records; validates request bodies with **Zod** (`@yapper/schemas`)
+  - `apps/socket` — Bun + Hocuspocus (Yjs WebSocket backend); `@hocuspocus/extension-redis` (cross-instance fanout) + `@hocuspocus/extension-database` (persistence); enforces auth/permissions on connect; validates handshake/messages with **Zod** (`@yapper/schemas`)
 - **Shared packages**:
   - `packages/db` — Drizzle ORM schema + client
   - `packages/auth` — Better Auth config + JWT/JWKS verify helpers
   - `packages/editor` — shared TipTap schema/extensions + doc→{title,preview,text} extraction
   - `packages/permissions` — effective-permission derivation (`none|view|edit`) + Redis cache helpers
+  - `packages/schemas` — shared **Zod** schemas + inferred types (API request/response, socket messages); single source of truth for cross-boundary validation across web/api/socket
   - `packages/typescript-config` — shared tsconfig bases
 - **Database**: PostgreSQL with **Drizzle ORM** (NOT Prisma)
 - **Realtime / CRDT**: Yjs (CRDT) over Hocuspocus WebSocket; awareness for cursors/presence
 - **Pub/Sub & Cache**: Redis (Yjs fanout across socket instances, revoke broadcast, permissions cache)
 - **Auth**: Better Auth — Google + GitHub OAuth, Drizzle adapter, JWT plugin (socket verifies handshake statelessly via JWKS)
+- **Validation**: **Zod** at every trust boundary — API request/response, socket handshake/messages, and web forms. Schemas live in `packages/schemas` (`@yapper/schemas`) and are imported by all three apps; derive types with `z.infer` and **never duplicate a contract shape** per app.
+- **Frontend UI**: **shadcn/ui** (Radix primitives + Tailwind, preflight ON) for components; **Motion** (`motion/react`) for opt-in animation (don't animate everything).
+- **Frontend state/data**: **TanStack Query** owns server state (queries/mutations + caching); **Zustand** owns cross-component client/UI state (editor/collab UI, dialog toggles). Don't put server data in Zustand or UI toggles in Query.
 - **Linting & Formatting**: Biome (replaces Prettier)
 - **Testing**: Vitest (unit)
 - **Local dev**: Docker Compose (Postgres + Redis) + `turbo dev`
+
+> **Frontend stack adoption (in progress):** shadcn/ui, TanStack Query, Zustand, Motion, and the `@yapper/schemas` Zod package are being introduced via `specs/09-frontend-stack` (slices 09a–09d). Until that spec is complete, parts of `apps/web` still use the older inline-style + `lib/api.ts` approach — check each app's `CLAUDE.md` and `specs/09-frontend-stack/implementation.md` for current vs. target state.
 
 ### How to Split Large Changes
 
