@@ -1,9 +1,9 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { type NoteAccess, type NoteMetadata, notesApi } from "../../../lib/api";
+import { useEffect } from "react";
 import { useSession } from "../../../lib/auth-client";
+import { useDeleteNote, useNote } from "../../../lib/queries/notes";
 import { Editor } from "./Editor";
 import { ShareDialog } from "./ShareDialog";
 
@@ -13,51 +13,32 @@ export default function NotePage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
 
-  const [note, setNote] = useState<NoteMetadata | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "notfound">("loading");
-  const [deleting, setDeleting] = useState(false);
+  const noteQuery = useNote(id);
+  const deleteNote = useDeleteNote();
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
   }, [isPending, session, router]);
 
-  const loadNote = useCallback(() => {
-    notesApi
-      .get(id)
-      .then((data) => {
-        setNote(data);
-        setStatus("ready");
-      })
-      .catch(() => setStatus("notfound"));
-  }, [id]);
-
-  useEffect(() => {
-    if (session) loadNote();
-  }, [session, loadNote]);
-
   if (isPending) return <main style={main}>Loading…</main>;
   if (!session) return null;
 
-  async function deleteNote() {
-    setDeleting(true);
+  async function handleDelete() {
     try {
-      await notesApi.remove(id);
+      await deleteNote.mutateAsync(id);
       router.push("/dashboard");
     } catch {
-      setDeleting(false);
+      // mutation state re-enables the button; nothing else to surface here
     }
-  }
-
-  function handleAccessChange(newAccess: NoteAccess) {
-    setNote((prev) => (prev ? { ...prev, access: newAccess } : prev));
   }
 
   function handleMadePrivate() {
     router.push("/dashboard");
   }
 
-  if (status === "loading") return <main style={main}>Loading note…</main>;
-  if (status === "notfound" || !note) {
+  if (noteQuery.isPending) return <main style={main}>Loading note…</main>;
+  const note = noteQuery.data;
+  if (!note) {
     return (
       <main style={main}>
         <p>Note not found.</p>
@@ -76,13 +57,14 @@ export default function NotePage() {
         </button>
         {note.isOwner ? (
           <div style={{ display: "flex", gap: 8, position: "relative" }}>
-            <ShareDialog
-              noteId={id}
-              initialAccess={note.access}
-              onAccessChange={handleAccessChange}
-            />
-            <button type="button" onClick={deleteNote} disabled={deleting} style={dangerBtn}>
-              {deleting ? "Deleting…" : "Delete"}
+            <ShareDialog noteId={id} initialAccess={note.access} />
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleteNote.isPending}
+              style={dangerBtn}
+            >
+              {deleteNote.isPending ? "Deleting…" : "Delete"}
             </button>
           </div>
         ) : null}

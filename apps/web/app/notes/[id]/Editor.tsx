@@ -4,27 +4,24 @@ import { HocuspocusProvider } from "@hocuspocus/provider";
 import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { buildExtensions } from "@yapper/editor";
+import { type AwarenessUser, socketServerMessageSchema } from "@yapper/schemas";
 import { useEffect, useState } from "react";
-import { getAuthToken } from "../../../lib/api";
+import { getAuthToken } from "../../../lib/auth-token";
+import { type ConnStatus, useEditorStore } from "../../../lib/stores/editor";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "ws://localhost:1234";
 
-type ConnStatus = "connecting" | "connected" | "disconnected" | "denied" | "made_private";
-type Permission = "none" | "view" | "edit";
-
-interface AwarenessUser {
-  id: string;
-  name: string;
-  color: string;
-}
-
 export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivate?: () => void }) {
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
-  const [status, setStatus] = useState<ConnStatus>("connecting");
-  const [identity, setIdentity] = useState<AwarenessUser | null>(null);
-  const [permission, setPermission] = useState<Permission>("view");
+  const setStatus = useEditorStore((s) => s.setStatus);
+  const setIdentity = useEditorStore((s) => s.setIdentity);
+  const setPermission = useEditorStore((s) => s.setPermission);
+  const markPrivate = useEditorStore((s) => s.markPrivate);
+  const reset = useEditorStore((s) => s.reset);
 
   useEffect(() => {
+    // Fresh collab state for this note; the store is shared across mounts.
+    reset();
     // Track whether we intentionally disconnected due to a server kick, so `onDisconnect`
     // does not override the `made_private` status with "disconnected".
     let madePrivate = false;
@@ -39,17 +36,16 @@ export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivat
       },
       onAuthenticationFailed: () => setStatus("denied"),
       onStateless: ({ payload }) => {
-        const msg = JSON.parse(payload) as {
-          type?: string;
-          user?: AwarenessUser;
-          permission?: Permission;
-          reason?: string;
-        };
-        if (msg.type === "identity" && msg.user) setIdentity(msg.user);
-        if (msg.permission) setPermission(msg.permission);
-        if (msg.type === "kick" && msg.reason === "note_made_private") {
+        // Server→client messages share their shape with the socket via @yapper/schemas.
+        const parsed = socketServerMessageSchema.safeParse(JSON.parse(payload));
+        if (!parsed.success) return;
+        const msg = parsed.data;
+        if (msg.type === "identity") {
+          setIdentity(msg.user);
+          setPermission(msg.permission);
+        } else if (msg.type === "kick" && msg.reason === "note_made_private") {
           madePrivate = true;
-          setStatus("made_private");
+          markPrivate();
           p.disconnect();
           onMadePrivate?.();
         }
@@ -57,31 +53,17 @@ export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivat
     });
     setProvider(p);
     return () => p.destroy();
-  }, [noteId, onMadePrivate]);
+  }, [noteId, onMadePrivate, reset, setStatus, setIdentity, setPermission, markPrivate]);
 
   if (!provider) return null;
-  return (
-    <BoundEditor
-      key={noteId}
-      provider={provider}
-      status={status}
-      identity={identity}
-      permission={permission}
-    />
-  );
+  return <BoundEditor key={noteId} provider={provider} />;
 }
 
-function BoundEditor({
-  provider,
-  status,
-  identity,
-  permission,
-}: {
-  provider: HocuspocusProvider;
-  status: ConnStatus;
-  identity: AwarenessUser | null;
-  permission: Permission;
-}) {
+function BoundEditor({ provider }: { provider: HocuspocusProvider }) {
+  const status = useEditorStore((s) => s.status);
+  const identity = useEditorStore((s) => s.identity);
+  const permission = useEditorStore((s) => s.permission);
+
   const editor = useEditor({
     extensions: [...buildExtensions(provider.document), CollaborationCaret.configure({ provider })],
     immediatelyRender: false,

@@ -1,43 +1,29 @@
 "use client";
 
+import type { NoteSummary } from "@yapper/schemas";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { type NoteSummary, notesApi, type SharedNoteSummary } from "../../lib/api";
+import { useEffect } from "react";
 import { signOut, useSession } from "../../lib/auth-client";
+import { useCreateNote, useNotes, useSharedNotes } from "../../lib/queries/notes";
 
 /**
- * The owner's dashboard: "My Notes" list + create + empty state (slice 03).
+ * The owner's dashboard: "My Notes" + "Shared with me" lists, create, and empty states.
  * Gated client-side — the session cookie lives on the `api` origin, so `useSession`
  * asks `api` with credentials and logged-out visitors are redirected to `/login`.
- * "Shared with me" arrives in slice 06.
+ * Notes data is served by TanStack Query (`lib/queries/notes`).
  */
 export default function DashboardPage() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
 
-  const [notes, setNotes] = useState<NoteSummary[] | null>(null);
-  const [shared, setShared] = useState<SharedNoteSummary[] | null>(null);
-  const [creating, setCreating] = useState(false);
+  const notesQuery = useNotes();
+  const sharedQuery = useSharedNotes();
+  const createNote = useCreateNote();
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
   }, [isPending, session, router]);
-
-  const loadNotes = useCallback(() => {
-    notesApi
-      .list()
-      .then(setNotes)
-      .catch(() => setNotes([]));
-    notesApi
-      .listShared()
-      .then(setShared)
-      .catch(() => setShared([]));
-  }, []);
-
-  useEffect(() => {
-    if (session) loadNotes();
-  }, [session, loadNotes]);
 
   if (isPending) return <main style={main}>Loading…</main>;
   if (!session) return null; // redirecting
@@ -47,15 +33,17 @@ export default function DashboardPage() {
     router.replace("/login");
   }
 
-  async function createNote() {
-    setCreating(true);
+  async function handleCreate() {
     try {
-      const note = await notesApi.create();
+      const note = await createNote.mutateAsync();
       router.push(`/notes/${note.id}`);
     } catch {
-      setCreating(false);
+      // mutation state re-enables the button; nothing else to surface here
     }
   }
+
+  const notes = notesQuery.data ?? [];
+  const shared = sharedQuery.data ?? [];
 
   return (
     <main style={main}>
@@ -69,11 +57,16 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <button type="button" onClick={createNote} disabled={creating} style={primaryBtn}>
-        {creating ? "Creating…" : "New note"}
+      <button
+        type="button"
+        onClick={handleCreate}
+        disabled={createNote.isPending}
+        style={primaryBtn}
+      >
+        {createNote.isPending ? "Creating…" : "New note"}
       </button>
 
-      {notes === null ? (
+      {notesQuery.isPending ? (
         <p style={{ color: "#555" }}>Loading notes…</p>
       ) : notes.length === 0 ? (
         <p style={{ color: "#555" }}>No notes yet. Create your first one.</p>
@@ -86,7 +79,7 @@ export default function DashboardPage() {
       )}
 
       <h2 style={sectionHeading}>Shared with me</h2>
-      {shared === null ? (
+      {sharedQuery.isPending ? (
         <p style={{ color: "#555" }}>Loading…</p>
       ) : shared.length === 0 ? (
         <p style={{ color: "#555" }}>No notes shared with you yet.</p>
