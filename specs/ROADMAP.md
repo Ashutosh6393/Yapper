@@ -14,6 +14,7 @@ on is `done`. See `architecture.html` (repo root) for the system diagrams these 
 | 05 | [collab-cursors](./05-collab-cursors/design.md) | 04 | **done** | Two clients on one note sync edits + see live cursors/selections + presence, via Redis fanout across socket instances |
 | 06 | [sharing-permissions](./06-sharing-permissions/design.md) | 05 | **done** | Capability link → login → join as collaborator; view/edit enforced server-side; "Shared with me" lists joined notes |
 | 07 | [make-private-revoke](./07-make-private-revoke/design.md) | 06 | **done** | Owner toggles private → collaborators instantly disconnected with "note made private by owner"; token rotated; owner stays connected |
+| 08 | [landing-page](./08-landing-page/design.md) | 02 | **done** | Logged-out `/` renders the Yapper marketing landing page (hero, features, presence, comparison, make-private, CTA, footer); Google/GitHub CTAs trigger `signIn.social` → `/dashboard`; nav anchors scroll; reduced-motion respected; goal-state test green |
 
 ## Status legend
 `not-started` → `in-progress` → `done`. Update the row above **and** the slice's
