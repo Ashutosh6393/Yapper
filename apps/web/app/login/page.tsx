@@ -1,15 +1,32 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import type { ReactNode } from "react";
 import { Suspense, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { signIn } from "../../lib/auth-client";
 
 type Provider = "google" | "github";
 
+function LoginShell({ children }: { children: ReactNode }) {
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-background p-6">
+      <Card className="w-full max-w-sm">{children}</Card>
+    </main>
+  );
+}
+
 // `useSearchParams` must sit under a Suspense boundary in the App Router (Next 15 build rule).
 export default function LoginPage() {
   return (
-    <Suspense fallback={<main style={loginMain}>Loading…</main>}>
+    <Suspense
+      fallback={
+        <LoginShell>
+          <CardContent className="py-10 text-center text-muted-foreground">Loading…</CardContent>
+        </LoginShell>
+      }
+    >
       <LoginForm />
     </Suspense>
   );
@@ -34,19 +51,24 @@ function LoginForm() {
   }
 
   return (
-    <main style={loginMain}>
-      <h1>Sign in to Yapper</h1>
-      <p style={{ color: "#555" }}>Login is required. Continue with a provider below.</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 24 }}>
-        <button type="button" onClick={() => login("google")} disabled={pending !== null}>
+    <LoginShell>
+      <CardHeader className="text-center">
+        <CardTitle className="text-2xl">Sign in to Yapper</CardTitle>
+        <CardDescription>Login is required. Continue with a provider below.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <Button type="button" onClick={() => login("google")} disabled={pending !== null}>
           {pending === "google" ? "Redirecting…" : "Continue with Google"}
-        </button>
-        <button type="button" onClick={() => login("github")} disabled={pending !== null}>
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => login("github")}
+          disabled={pending !== null}
+        >
           {pending === "github" ? "Redirecting…" : "Continue with GitHub"}
-        </button>
-      </div>
-    </main>
+        </Button>
+      </CardContent>
+    </LoginShell>
   );
 }
-
-const loginMain = { fontFamily: "system-ui, sans-serif", padding: "3rem", maxWidth: 420 } as const;

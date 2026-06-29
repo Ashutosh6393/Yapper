@@ -4,27 +4,25 @@ import { HocuspocusProvider } from "@hocuspocus/provider";
 import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { buildExtensions } from "@yapper/editor";
+import { type AwarenessUser, socketServerMessageSchema } from "@yapper/schemas";
 import { useEffect, useState } from "react";
-import { getAuthToken } from "../../../lib/api";
+import { Badge } from "@/components/ui/badge";
+import { getAuthToken } from "../../../lib/auth-token";
+import { type ConnStatus, useEditorStore } from "../../../lib/stores/editor";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "ws://localhost:1234";
 
-type ConnStatus = "connecting" | "connected" | "disconnected" | "denied" | "made_private";
-type Permission = "none" | "view" | "edit";
-
-interface AwarenessUser {
-  id: string;
-  name: string;
-  color: string;
-}
-
 export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivate?: () => void }) {
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
-  const [status, setStatus] = useState<ConnStatus>("connecting");
-  const [identity, setIdentity] = useState<AwarenessUser | null>(null);
-  const [permission, setPermission] = useState<Permission>("view");
+  const setStatus = useEditorStore((s) => s.setStatus);
+  const setIdentity = useEditorStore((s) => s.setIdentity);
+  const setPermission = useEditorStore((s) => s.setPermission);
+  const markPrivate = useEditorStore((s) => s.markPrivate);
+  const reset = useEditorStore((s) => s.reset);
 
   useEffect(() => {
+    // Fresh collab state for this note; the store is shared across mounts.
+    reset();
     // Track whether we intentionally disconnected due to a server kick, so `onDisconnect`
     // does not override the `made_private` status with "disconnected".
     let madePrivate = false;
@@ -39,17 +37,16 @@ export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivat
       },
       onAuthenticationFailed: () => setStatus("denied"),
       onStateless: ({ payload }) => {
-        const msg = JSON.parse(payload) as {
-          type?: string;
-          user?: AwarenessUser;
-          permission?: Permission;
-          reason?: string;
-        };
-        if (msg.type === "identity" && msg.user) setIdentity(msg.user);
-        if (msg.permission) setPermission(msg.permission);
-        if (msg.type === "kick" && msg.reason === "note_made_private") {
+        // Server→client messages share their shape with the socket via @yapper/schemas.
+        const parsed = socketServerMessageSchema.safeParse(JSON.parse(payload));
+        if (!parsed.success) return;
+        const msg = parsed.data;
+        if (msg.type === "identity") {
+          setIdentity(msg.user);
+          setPermission(msg.permission);
+        } else if (msg.type === "kick" && msg.reason === "note_made_private") {
           madePrivate = true;
-          setStatus("made_private");
+          markPrivate();
           p.disconnect();
           onMadePrivate?.();
         }
@@ -57,36 +54,27 @@ export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivat
     });
     setProvider(p);
     return () => p.destroy();
-  }, [noteId, onMadePrivate]);
+  }, [noteId, onMadePrivate, reset, setStatus, setIdentity, setPermission, markPrivate]);
 
   if (!provider) return null;
-  return (
-    <BoundEditor
-      key={noteId}
-      provider={provider}
-      status={status}
-      identity={identity}
-      permission={permission}
-    />
-  );
+  return <BoundEditor key={noteId} provider={provider} />;
 }
 
-function BoundEditor({
-  provider,
-  status,
-  identity,
-  permission,
-}: {
-  provider: HocuspocusProvider;
-  status: ConnStatus;
-  identity: AwarenessUser | null;
-  permission: Permission;
-}) {
+function BoundEditor({ provider }: { provider: HocuspocusProvider }) {
+  const status = useEditorStore((s) => s.status);
+  const identity = useEditorStore((s) => s.identity);
+  const permission = useEditorStore((s) => s.permission);
+
   const editor = useEditor({
     extensions: [...buildExtensions(provider.document), CollaborationCaret.configure({ provider })],
     immediatelyRender: false,
     editable: false,
-    editorProps: { attributes: { style: editorAttrStyle } },
+    editorProps: {
+      attributes: {
+        class:
+          "note-prose min-h-80 rounded-lg border bg-card p-4 outline-none focus:border-primary/50",
+      },
+    },
   });
 
   useEffect(() => {
@@ -99,9 +87,9 @@ function BoundEditor({
 
   if (status === "made_private") {
     return (
-      <div style={madePrivateBanner}>
-        <p style={{ margin: 0, fontWeight: 600 }}>Note made private by owner</p>
-        <p style={{ margin: "4px 0 0", fontSize: 14, color: "#555" }}>
+      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center">
+        <p className="font-semibold">Note made private by owner</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           The owner has stopped sharing this note.
         </p>
       </div>
@@ -110,9 +98,13 @@ function BoundEditor({
 
   return (
     <div>
-      <div style={topRow}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <ConnectionBadge status={status} />
-        {permission === "view" && <span style={viewOnlyTag}>View only</span>}
+        {permission === "view" && (
+          <Badge variant="outline" className="text-amber-600">
+            View only
+          </Badge>
+        )}
         {editor && <Presence provider={provider} />}
       </div>
       <EditorContent editor={editor} />
@@ -141,10 +133,14 @@ function Presence({ provider }: { provider: HocuspocusProvider }) {
 
   if (users.length === 0) return null;
   return (
-    <div style={presence}>
+    <div className="inline-flex flex-wrap items-center gap-2">
       {users.map((u) => (
-        <span key={u.id} style={chip} title={u.name}>
-          <span style={{ ...dot, background: u.color }} />
+        <span
+          key={u.id}
+          title={u.name}
+          className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[13px]"
+        >
+          <span className="size-2 rounded-full" style={{ background: u.color }} />
           {u.name}
         </span>
       ))}
@@ -160,64 +156,24 @@ function ConnectionBadge({ status }: { status: ConnStatus }) {
     denied: "Access denied",
     made_private: "Note made private",
   };
-  const color: Record<ConnStatus, string> = {
-    connecting: "#b58900",
-    connected: "#2aa198",
-    disconnected: "#b58900",
-    denied: "#d33",
-    made_private: "#d33",
+  const text: Record<ConnStatus, string> = {
+    connecting: "text-amber-600",
+    connected: "text-emerald-600",
+    disconnected: "text-amber-600",
+    denied: "text-red-600",
+    made_private: "text-red-600",
+  };
+  const dot: Record<ConnStatus, string> = {
+    connecting: "bg-amber-500",
+    connected: "bg-emerald-500",
+    disconnected: "bg-amber-500",
+    denied: "bg-red-500",
+    made_private: "bg-red-500",
   };
   return (
-    <div style={{ ...badge, color: color[status] }}>
-      <span style={{ ...dot, background: color[status] }} />
+    <div className={`inline-flex items-center gap-1.5 text-[13px] ${text[status]}`}>
+      <span className={`size-2 rounded-full ${dot[status]}`} />
       {label[status]}
     </div>
   );
 }
-
-const topRow = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  flexWrap: "wrap" as const,
-};
-const presence = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  flexWrap: "wrap" as const,
-};
-const chip = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-  fontSize: 13,
-  padding: "2px 8px",
-  borderRadius: 999,
-  background: "#f3f3f3",
-} as const;
-const badge = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-  fontSize: 13,
-  marginBottom: 12,
-} as const;
-const dot = { width: 8, height: 8, borderRadius: "50%", display: "inline-block" } as const;
-const viewOnlyTag = {
-  fontSize: 12,
-  color: "#b58900",
-  border: "1px solid #e6d8a8",
-  borderRadius: 999,
-  padding: "1px 8px",
-} as const;
-const madePrivateBanner = {
-  padding: "24px 16px",
-  background: "#fff5f5",
-  border: "1px solid #ffc5c5",
-  borderRadius: 8,
-  textAlign: "center" as const,
-} as const;
-const editorAttrStyle =
-  "min-height: 320px; outline: none; border: 1px solid #e2e2e2; border-radius: 8px; padding: 16px;";

@@ -17,6 +17,7 @@
     "@yapper/db": "workspace:*",
     "@yapper/editor": "workspace:*",
     "@yapper/permissions": "workspace:*",
+    "@yapper/schemas": "workspace:*",
     "drizzle-orm": "^0.44.2",
     "ioredis": "^5.4.1",
     "yjs": "^13.6.31"

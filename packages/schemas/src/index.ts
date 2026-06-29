@@ -1,4 +1,6 @@
 // Barrel for @yapper/schemas — the single source of truth for cross-boundary
-// (api <-> web <-> socket) data shapes. Schemas are authored in slice 09b;
-// 09a establishes the package with the shared `permission` primitive.
+// (api <-> web <-> socket) data shapes.
 export * from "./common";
+export * from "./note";
+export * from "./share";
+export * from "./socket";

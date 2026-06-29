@@ -1,5 +1,6 @@
 import type { Hocuspocus } from "@hocuspocus/server";
 import { revokeChannel, roleChangeChannel } from "@yapper/permissions";
+import type { SocketServerMessage } from "@yapper/schemas";
 import IORedis from "ioredis";
 import type { ConnectionContext } from "./auth";
 
@@ -18,7 +19,8 @@ export function kickNonOwners(server: Hocuspocus, noteId: string, reason: KickRe
     const ctx = connection.context as ConnectionContext;
     if (ctx.isOwner) continue;
     if (reason === "note_made_private") {
-      connection.sendStateless(JSON.stringify({ type: "kick", reason: "note_made_private" }));
+      const message: SocketServerMessage = { type: "kick", reason: "note_made_private" };
+      connection.sendStateless(JSON.stringify(message));
     }
     connection.webSocket.close();
   }

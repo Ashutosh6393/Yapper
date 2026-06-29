@@ -1,45 +1,39 @@
 "use client";
 
+import type { NoteSummary } from "@yapper/schemas";
+import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { type NoteSummary, notesApi, type SharedNoteSummary } from "../../lib/api";
+import { useEffect } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { signOut, useSession } from "../../lib/auth-client";
+import { useCreateNote, useNotes, useSharedNotes } from "../../lib/queries/notes";
 
 /**
- * The owner's dashboard: "My Notes" list + create + empty state (slice 03).
+ * The owner's dashboard: "My Notes" + "Shared with me" lists, create, and empty states.
  * Gated client-side — the session cookie lives on the `api` origin, so `useSession`
  * asks `api` with credentials and logged-out visitors are redirected to `/login`.
- * "Shared with me" arrives in slice 06.
+ * Notes data is served by TanStack Query (`lib/queries/notes`).
  */
 export default function DashboardPage() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
 
-  const [notes, setNotes] = useState<NoteSummary[] | null>(null);
-  const [shared, setShared] = useState<SharedNoteSummary[] | null>(null);
-  const [creating, setCreating] = useState(false);
+  const notesQuery = useNotes();
+  const sharedQuery = useSharedNotes();
+  const createNote = useCreateNote();
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
   }, [isPending, session, router]);
 
-  const loadNotes = useCallback(() => {
-    notesApi
-      .list()
-      .then(setNotes)
-      .catch(() => setNotes([]));
-    notesApi
-      .listShared()
-      .then(setShared)
-      .catch(() => setShared([]));
-  }, []);
-
-  useEffect(() => {
-    if (session) loadNotes();
-  }, [session, loadNotes]);
-
-  if (isPending) return <main style={main}>Loading…</main>;
+  if (isPending) {
+    return <main className="mx-auto max-w-2xl px-6 py-12 text-muted-foreground">Loading…</main>;
+  }
   if (!session) return null; // redirecting
 
   async function logout() {
@@ -47,105 +41,110 @@ export default function DashboardPage() {
     router.replace("/login");
   }
 
-  async function createNote() {
-    setCreating(true);
+  async function handleCreate() {
     try {
-      const note = await notesApi.create();
+      const note = await createNote.mutateAsync();
       router.push(`/notes/${note.id}`);
     } catch {
-      setCreating(false);
+      // mutation state re-enables the button; nothing else to surface here
     }
   }
 
   return (
-    <main style={main}>
-      <header style={header}>
-        <h1 style={{ margin: 0 }}>My Notes</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{ color: "#555", fontSize: 14 }}>{session.user.email}</span>
-          <button type="button" onClick={logout} style={ghostBtn}>
+    <main className="mx-auto max-w-2xl px-6 py-12">
+      <header className="mb-8 flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">My Notes</h1>
+        <div className="flex items-center gap-2">
+          <span className="hidden text-sm text-muted-foreground sm:inline">
+            {session.user.email}
+          </span>
+          <ThemeToggle />
+          <Button type="button" variant="ghost" size="sm" onClick={logout}>
             Sign out
-          </button>
+          </Button>
         </div>
       </header>
 
-      <button type="button" onClick={createNote} disabled={creating} style={primaryBtn}>
-        {creating ? "Creating…" : "New note"}
-      </button>
+      <Button type="button" onClick={handleCreate} disabled={createNote.isPending} className="mb-6">
+        {createNote.isPending ? "Creating…" : "New note"}
+      </Button>
 
-      {notes === null ? (
-        <p style={{ color: "#555" }}>Loading notes…</p>
-      ) : notes.length === 0 ? (
-        <p style={{ color: "#555" }}>No notes yet. Create your first one.</p>
-      ) : (
-        <ul style={list}>
-          {notes.map((note) => (
-            <NoteCard key={note.id} note={note} />
-          ))}
-        </ul>
-      )}
+      <NoteList
+        loading={notesQuery.isPending}
+        notes={notesQuery.data ?? []}
+        emptyText="No notes yet. Create your first one."
+      />
 
-      <h2 style={sectionHeading}>Shared with me</h2>
-      {shared === null ? (
-        <p style={{ color: "#555" }}>Loading…</p>
-      ) : shared.length === 0 ? (
-        <p style={{ color: "#555" }}>No notes shared with you yet.</p>
-      ) : (
-        <ul style={list}>
-          {shared.map((note) => (
-            <NoteCard key={note.id} note={note} badge={note.access} />
-          ))}
-        </ul>
-      )}
+      <h2 className="mt-10 mb-4 text-lg font-semibold tracking-tight">Shared with me</h2>
+      <NoteList
+        loading={sharedQuery.isPending}
+        notes={sharedQuery.data ?? []}
+        emptyText="No notes shared with you yet."
+        showBadge
+      />
     </main>
+  );
+}
+
+function NoteList({
+  loading,
+  notes,
+  emptyText,
+  showBadge,
+}: {
+  loading: boolean;
+  notes: Array<NoteSummary & { access?: string }>;
+  emptyText: string;
+  showBadge?: boolean;
+}) {
+  const reduce = useReducedMotion();
+
+  if (loading) {
+    return (
+      <div className="grid gap-3">
+        <Skeleton className="h-[68px] w-full rounded-xl" />
+        <Skeleton className="h-[68px] w-full rounded-xl" />
+      </div>
+    );
+  }
+  if (notes.length === 0) return <p className="text-sm text-muted-foreground">{emptyText}</p>;
+
+  return (
+    <ul className="grid gap-3">
+      {notes.map((note, i) => (
+        <motion.li
+          key={note.id}
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: reduce ? 0 : i * 0.04 }}
+        >
+          <NoteCard note={note} badge={showBadge ? note.access : undefined} />
+        </motion.li>
+      ))}
+    </ul>
   );
 }
 
 /** A single note row linking into the editor, with an optional access badge (for shared notes). */
 function NoteCard({ note, badge }: { note: NoteSummary; badge?: string }) {
   return (
-    <li style={listItem}>
-      <Link href={`/notes/${note.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-        <span style={{ fontWeight: 600 }}>{note.title}</span>
-        {badge ? <span style={accessBadge}>{badge}</span> : null}
+    <Card className="gap-0 p-0 transition-colors hover:border-primary/40">
+      <Link href={`/notes/${note.id}`} className="block p-4">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold">{note.title}</span>
+          {badge ? (
+            <Badge variant="secondary" className="uppercase">
+              {badge}
+            </Badge>
+          ) : null}
+        </div>
         {note.preview ? (
-          <span style={{ color: "#666", display: "block", fontSize: 14 }}>{note.preview}</span>
+          <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">{note.preview}</p>
         ) : null}
-        <span style={{ color: "#999", display: "block", fontSize: 12, marginTop: 4 }}>
+        <p className="mt-1 text-xs text-muted-foreground">
           {new Date(note.updatedAt).toLocaleString()}
-        </span>
+        </p>
       </Link>
-    </li>
+    </Card>
   );
 }
-
-const main = { fontFamily: "system-ui, sans-serif", padding: "3rem", maxWidth: 640 } as const;
-const header = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 24,
-} as const;
-const primaryBtn = {
-  padding: "8px 16px",
-  borderRadius: 6,
-  border: "none",
-  background: "#111",
-  color: "#fff",
-  cursor: "pointer",
-  marginBottom: 24,
-} as const;
-const ghostBtn = { padding: "6px 12px", borderRadius: 6, cursor: "pointer" } as const;
-const list = { listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 12 } as const;
-const sectionHeading = { marginTop: 40, marginBottom: 16 } as const;
-const accessBadge = {
-  marginLeft: 8,
-  fontSize: 11,
-  textTransform: "uppercase" as const,
-  letterSpacing: 0.5,
-  color: "#555",
-  background: "#eee",
-  borderRadius: 4,
-  padding: "1px 6px",
-} as const;
-const listItem = { border: "1px solid #e5e5e5", borderRadius: 8, padding: "12px 16px" } as const;

@@ -96,6 +96,133 @@ speculative empty store.
 
 ---
 
+## ADR-007: 09d app theme harmonizes with the landing brand (light)
+
+### Context
+`globals.css` already defines a brand `@theme` (brand brown, cream, paper/card light surfaces, SF
+Pro) built for the landing page. shadcn ships a neutral-gray default. The app pages need a direction.
+
+### Options Considered
+1. **Harmonize with the landing brand (light)** — map shadcn tokens to the existing brand palette;
+   light paper surfaces, brand-brown primary, cream accent. Cohesive; reuses tokens; readable editor.
+2. **shadcn default neutral** — fast/conventional, but visually disconnected from the landing.
+3. **Dark app (match landing's dark marketing theme)** — striking but poor for long-form writing.
+
+### Decision
+**Option 1.** Map shadcn's semantic CSS variables onto the brand `@theme` tokens. **Support light +
+dark via a user toggle** (see ADR-011): light = paper/card surfaces; dark = the brand ink/panel
+surfaces. The marketing landing page stays always-dark (it uses the explicit brand tokens directly,
+not the semantic light/dark vars, so the toggle does not affect it).
+
+### Consequences
+- Two var blocks in `globals.css`: `:root` (light) and `.dark` (dark), both → brand tokens; one
+  `@theme inline` mapping + shadcn base layer.
+- The landing must be re-verified under preflight ON (it already uses these tokens — low risk).
+
+---
+
+## ADR-008: 09d scope is "restyle + light polish", not a UX redesign
+
+### Context
+Migrating to shadcn could be a 1:1 restyle, a restyle with modest polish, or a fuller UX redesign.
+
+### Decision
+**Restyle + light polish**: brand-themed shadcn components plus modest layout/spacing/hierarchy
+improvements (dashboard cards, cleaner editor header, real empty states). Routes, flows, and page
+structure stay the same. A fuller UX redesign (sidebar nav, richer toolbar) is explicitly out of
+scope — a future slice if wanted.
+
+### Consequences
+- Existing behavior tests remain valid parity guards.
+- Bounded, reviewable diffs per page.
+
+---
+
+## ADR-009: ShareDialog becomes a shadcn Popover (not a modal Dialog)
+
+### Context
+The share control is currently an absolute-positioned panel anchored under the Share button.
+shadcn offers `Popover` (anchored, non-blocking) or `Dialog` (centered modal, blocking).
+
+### Decision
+**Popover**, anchored to the Share button — preserves today's contextual, non-blocking feel with the
+least behavior change. Keeps the `useUiStore` open state; adds Motion fade/scale on open.
+
+### Consequences
+- `useUiStore.shareDialogOpen` continues to drive open/close (now via Popover `open`/`onOpenChange`).
+- Despite the "dialog" name, the component is a popover — the store/name are kept for continuity.
+
+---
+
+## ADR-011: Dark mode via `next-themes` (class strategy) with a toggle
+
+### Context
+ADR-007 maps shadcn vars to brand tokens for both light and dark. We need a way to switch themes
+without a flash-of-wrong-theme on load, in a Next.js App Router app whose pages are client components.
+
+### Options Considered
+1. **`next-themes`** — idiomatic for Next.js; `attribute="class"` toggles `.dark` on `<html>`, injects
+   a pre-paint script (no FOUC), persists choice, supports `system`. Small, well-worn dependency.
+2. **Hand-rolled Zustand + localStorage** — reuses our store, but we must solve SSR FOUC ourselves
+   (inline script) and re-implement system-preference handling. More code, easy to get subtly wrong.
+
+### Decision
+**Option 1 — `next-themes`.** Wrap the app in `ThemeProvider` (inside `app/providers.tsx`, alongside
+the Query provider) with `attribute="class"`, `defaultTheme="system"`, `enableSystem`. Add a small
+`ThemeToggle` (lucide sun/moon, `useTheme`) in the dashboard + note-page headers.
+
+### Consequences
+- Adds `next-themes`; `globals.css` needs the `.dark` variant (`@custom-variant dark`) + dark var block.
+- `suppressHydrationWarning` on `<html>` in the root layout (next-themes mutates the class pre-paint).
+- The landing page is unaffected (explicit tokens, not semantic vars) and remains dark.
+
+---
+
+## ADR-010: Light Motion only; no toast system
+
+### Context
+Motion is opt-in (ADR-005). The UI store mentioned toasts, but the app currently surfaces errors
+inline with no toast UI.
+
+### Decision
+Add Motion to just the share popover (fade/scale) and a subtle staggered dashboard list fade-in, both
+`prefers-reduced-motion`-gated. **No toast/Sonner** in 09d — error states stay inline (YAGNI).
+
+### Consequences
+- Minimal animation surface; reviewers can reject gratuitous motion.
+- If toasts are wanted later, they get their own slice + `useUiStore` extension.
+
+---
+
+## ADR-006: 09b scope — enforce only contracts with a real consumer; defer response schemas
+
+### Context
+Slice 09b authors `@yapper/schemas` and enforces validation. The temptation is to author every
+request/response/message shape up front. But TDD/simplicity says don't write schemas for shapes that
+have no consumer yet — they drift and can't be verified.
+
+### Decision
+09b authors and **enforces** only the shapes with a real producer/consumer today:
+- `shareNoteBodySchema` — parsed by the api `POST /:id/share` route (replaces the manual `level` check).
+- `socketHandshakeSchema` — parsed at the top of `authorizeConnection` (rejects empty token/
+  documentName before JWT verification). This is the socket's inbound trust boundary; Yjs/awareness
+  traffic is handled by the Hocuspocus protocol, not custom JSON, so there are no other client→server
+  messages to validate.
+- `socketServerMessageSchema` (identity + kick union) — the socket now **types** its outgoing
+  stateless payloads with this (compile-time guarantee); the web client adopts it for parsing in 09c.
+
+Note **response** schemas (note metadata, list rows, share/join responses) are deferred to **09c**,
+authored next to the TanStack Query hooks that consume them — mirroring the live api selects at the
+point of use rather than speculatively.
+
+### Consequences
+- 09b stays tightly scoped and every schema is exercised by a test or a typed call site.
+- 09c authors response schemas + web parsing together (no orphan contracts).
+- Param validation (`:id`, `:token`) is left as the existing presence checks — always-string path
+  params with no meaningful shape to add.
+
+---
+
 ## ADR-005: Motion (`motion/react`), opt-in
 
 ### Context
