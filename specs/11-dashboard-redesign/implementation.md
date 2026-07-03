@@ -23,15 +23,26 @@
   state). Goal-state test red→green (4). Full web suite green (32), `tsc` clean, Biome clean. Also
   updated the pre-existing `lib/queries/notes.test.tsx` fixture to carry `access` (contract change
   from Task 1). Committed.
+- **Task 10** — spec marked complete; manual browser smoke run by the owner (see post-smoke fixes).
+- **Post-smoke fixes** — issues found in the manual smoke, fixed in two follow-up commits:
+  - Whole note card opens the note (not just the title); card body is a real `<button>` and the ⋮
+    menu is a positioned sibling so it no longer triggers open.
+  - "Start a new note" hero input: taller (`h-14`), pill-rounded, outside ring, leading pencil icon.
+  - Theme toggle moved to the top bar (removed from the avatar dropdown).
+  - Search field narrowed (`max-w-[240px]`).
+  - Sidebar logo is plain "Yapper" (no "Notes" subtitle, no pencil box).
+  - Sidebar is now responsive: hidden ≥ mobile becomes an off-canvas drawer opened by a top-bar
+    hamburger (`md:hidden`), sliding in via `transition-transform` over a tap-to-dismiss backdrop;
+    `md`+ stays fixed/visible.
+  - Dashboard session loader centered full-height with a `Loader2` spinner (matches the `/` loader).
+  - Added tests: backdrop → `onClose`, hamburger → `onMenuClick`. Web suite green (34), `tsc` clean,
+    Biome clean. Both commits pushed; PR #28 opened against `main`.
 
 ## In Progress
 
 ## Blocked
 
 ## Next Steps
-- **Manual smoke (owner action, not yet run):** with both apps running, sign in → verify the
-  sidebar + top bar shell, New Note / Start-a-note → dialog, open existing card, search filters both
-  sections, refresh refetches, avatar menu (email + theme + sign out), ⋮ → Delete.
 - Deferred to `future-work.md`: presence/avatars/live badges, Archive/Trash logic, floating dock,
   revoked shared card, server-side search.
 
@@ -50,3 +61,10 @@
   the reuse-based note dialog. All web tests pass (32), `tsc --noEmit` clean, Biome clean on changed
   files. Pre-existing `lib/queries/notes.test.tsx` fixture updated for the new `access` contract.
 - Remaining: manual browser smoke (Task 10 Step 2) — left for the owner to run.
+
+### 2026-07-04
+- Owner ran the manual browser smoke. Findings fixed in two follow-up commits (see "Post-smoke
+  fixes" above): full-card open, hero-input restyle, theme toggle → top bar, responsive off-canvas
+  sidebar with hamburger + slide-in, narrower search, plain "Yapper" logo, centered spinner loader.
+- Verification after fixes: web `34/34`, `tsc --noEmit` clean, Biome clean. Branch pushed;
+  PR #28 opened against `main` (https://github.com/Ashutosh6393/Yapper/pull/28).
