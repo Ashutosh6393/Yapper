@@ -6,7 +6,8 @@
 
 - [x] All six goal-state tests (3 in `LandingPage.test.tsx`, 3 in `login/page.test.tsx`).
 - [x] `/` (LandingPage): `useSession()` gate → `router.replace("/dashboard")` when logged in;
-      CTAs render only when `!isPending && !session` (A1 static shell).
+      neutral loader while pending, marketing page renders only when resolved logged-out
+      (A2 — supersedes A1; fixes the marketing-page flash before the dashboard redirect).
 - [x] `/login`: `useSession()` gate → `router.replace(destination)` when logged in, honoring a
       same-origin `returnTo` over the `/dashboard` default; shows a loading shell while pending.
 - [x] Vitest config: added `@/*` → app-root alias (needed to import shadcn/ui from the login test).
@@ -26,3 +27,5 @@
 - TDD: red → green per surface (`/` first, then `/login`). No `/notes` or `/share` changes.
 - Files touched: `app/_landing/LandingPage.tsx`, `app/login/page.tsx`, their tests,
   `vitest.config.ts`.
+- Follow-up: switched `/` from A1 (static shell) to A2 (neutral loader) after observing the
+  logged-in marketing-page flash → dashboard jump. See decisions.md ADR-002.

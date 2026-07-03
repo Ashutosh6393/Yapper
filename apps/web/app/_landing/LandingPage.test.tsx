@@ -91,14 +91,15 @@ describe("LandingPage (slice 08 goal state)", () => {
     expect(screen.queryAllByRole("button", { name: /Continue with Google/i })).toHaveLength(0);
   });
 
-  it("shows the marketing shell but suppresses CTAs and the redirect while the session is pending", () => {
+  it("shows a neutral loader (not the marketing page) while the session is pending", () => {
     pending();
     render(<LandingPage />);
-    // Static shell paints immediately (A1)...
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/Notes that know/i);
-    // ...but session-dependent bits are held back.
+    // A2: neither the marketing page nor its CTAs render until the session resolves, so a
+    // returning logged-in visitor never sees the marketing page flash before the redirect.
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     expect(screen.queryAllByRole("button", { name: /Continue with Google/i })).toHaveLength(0);
     expect(replaceMock).not.toHaveBeenCalled();
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
   });
 
   it("does not redirect a resolved logged-out visitor", () => {

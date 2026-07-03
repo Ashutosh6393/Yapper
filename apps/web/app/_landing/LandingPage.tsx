@@ -225,16 +225,16 @@ const features = [
 export default function LandingPage() {
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Entry-surface redirect (spec 10 / ADR-0001): logged-in visitors are bounced to /dashboard
-  // client-side (the session cookie lives on the api origin, invisible to web-origin middleware).
-  // Approach A1: the static marketing shell always paints; only the OAuth CTAs and the redirect
-  // wait for the session to resolve, so logged-out visitors never see a blank flash.
+  // Entry-surface redirect (spec 10 / ADR-0001, ADR-002): logged-in visitors are bounced to
+  // /dashboard client-side (the session cookie lives on the api origin, invisible to web-origin
+  // middleware). Approach A2: while the session is pending we render a neutral loader instead of
+  // the marketing page, so a returning logged-in visitor never sees the marketing page flash
+  // before the redirect. The marketing page renders only once the session resolves logged-out.
   const { data: session, isPending } = useSession();
   const router = useRouter();
   useEffect(() => {
     if (!isPending && session) router.replace("/dashboard");
   }, [isPending, session, router]);
-  const showCtas = !isPending && !session;
 
   // Scroll-reveal, mirroring the imported design's IntersectionObserver. Content is visible by
   // default (SSR/no-JS friendly); we only add the hidden+transition classes when motion is allowed.
@@ -281,6 +281,18 @@ export default function LandingPage() {
       cardIo.disconnect();
     };
   }, []);
+
+  // Session still resolving: neutral loader, no marketing page (A2). SSR renders this too, so the
+  // first paint is the loader for everyone until the client learns whether to redirect.
+  if (isPending) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-background text-sm text-muted-foreground">
+        Loading…
+      </main>
+    );
+  }
+  // Resolved logged-in: render nothing while the redirect effect above navigates to /dashboard.
+  if (session) return null;
 
   return (
     <div ref={rootRef} className="lp-root bg-ink font-sans text-fg m-0 p-0">
@@ -334,16 +346,14 @@ export default function LandingPage() {
               who&apos;s reading, who&apos;s typing — and pull the note private in one click.
             </p>
 
-            {showCtas ? (
-              <div className="flex animate-[fade-up_0.55s_ease_0.24s_both] flex-wrap gap-[12px] motion-reduce:animate-none">
-                <button type="button" onClick={() => signInWith("google")} className={HERO_GOOGLE}>
-                  <GoogleIcon /> Continue with Google
-                </button>
-                <button type="button" onClick={() => signInWith("github")} className={HERO_GITHUB}>
-                  <GitHubIcon /> Continue with GitHub
-                </button>
-              </div>
-            ) : null}
+            <div className="flex animate-[fade-up_0.55s_ease_0.24s_both] flex-wrap gap-[12px] motion-reduce:animate-none">
+              <button type="button" onClick={() => signInWith("google")} className={HERO_GOOGLE}>
+                <GoogleIcon /> Continue with Google
+              </button>
+              <button type="button" onClick={() => signInWith("github")} className={HERO_GITHUB}>
+                <GitHubIcon /> Continue with GitHub
+              </button>
+            </div>
           </div>
 
           {/* Right: animated document mockup */}
@@ -852,16 +862,14 @@ export default function LandingPage() {
             Sign in with your Google or GitHub account. Every note starts private. Share when
             you&apos;re ready — pull it back whenever you want.
           </p>
-          {showCtas ? (
-            <div className="flex flex-wrap justify-center gap-[14px]">
-              <button type="button" onClick={() => signInWith("google")} className={CTA_GOOGLE}>
-                <GoogleIcon size={20} /> Continue with Google
-              </button>
-              <button type="button" onClick={() => signInWith("github")} className={CTA_GITHUB}>
-                <GitHubIcon size={20} /> Continue with GitHub
-              </button>
-            </div>
-          ) : null}
+          <div className="flex flex-wrap justify-center gap-[14px]">
+            <button type="button" onClick={() => signInWith("google")} className={CTA_GOOGLE}>
+              <GoogleIcon size={20} /> Continue with Google
+            </button>
+            <button type="button" onClick={() => signInWith("github")} className={CTA_GITHUB}>
+              <GitHubIcon size={20} /> Continue with GitHub
+            </button>
+          </div>
           <p className="mt-[20px] text-[13px] text-[oklch(0.6_0_0)]">
             No anonymous access. Every collaborator is a real, tracked identity.
           </p>

@@ -4,33 +4,40 @@ The primary architectural decision lives in
 [ADR-0001](../../docs/adr/0001-client-side-auth-redirect-on-entry-surfaces.md)
 (client-side redirect; web-origin middleware can't see the api-origin session cookie).
 
-## ADR-002: Render the static shell during `isPending` on `/` (approach A1)
+## ADR-002: Neutral loader during `isPending` on `/` (approach A2)
+
+> **Superseded the initial A1 decision.** A1 (static marketing shell during pending) was shipped
+> first, but in practice a returning logged-in visitor saw the full dark marketing page render for
+> the ~100–300ms session round-trip and then hard-cut to the light dashboard — a jarring jump.
+> The web origin can't know the user is logged in before that round-trip (the session cookie is on
+> the api origin), so during pending we must pick one view. We switched to A2.
 
 ### Context
 
 `useSession()` is pending on every load, including first-time logged-out marketing visitors.
-Gating the whole landing render behind session resolution would penalize those visitors with a
-blank flash and turn a near-instant page into a client-gated one.
+During that window the web origin cannot tell logged-in from logged-out.
 
 ### Options Considered
 
-1. **A1 — static shell now, gate only session-dependent bits.** Hero/marketing content paints
-   immediately; OAuth CTAs + the redirect wait for session resolution. Best first-paint, slightly
-   more conditional rendering.
-2. A2 — blank/spinner while pending. Simplest, but penalizes every logged-out visitor.
-3. Optimistic hint cookie/localStorage. Faster guess, but a second source of truth that can go
-   stale after logout elsewhere. Over-engineered for this slice.
+1. A1 — static marketing shell now, gate only CTAs/redirect. Best logged-out first-paint, but
+   logged-in visitors see the marketing page flash before redirecting (the observed jump).
+2. **A2 — neutral loader while pending; marketing renders only once resolved logged-out.** Smooth
+   for logged-in visitors (loader → dashboard, no marketing flash). Cost: first-time logged-out
+   visitors wait a beat on the loader before the marketing page.
+3. Optimistic hint cookie/localStorage. Best of both, but a second source of truth that can go
+   stale after logout elsewhere, plus SSR nuance. Rejected as over-engineered for this slice.
 
 ### Decision
 
-A1. Render the shell always; render the OAuth CTAs only when `!isPending && !session`; fire the
-redirect only when `!isPending && session`.
+A2. `if (isPending) return <Loader/>; if (session) return null; // redirecting` — the marketing
+page (with its CTAs) renders only in the resolved-logged-out branch.
 
 ### Consequences
 
-- Logged-out visitors see the hero instantly; CTAs appear a beat later when session resolves.
-- Logged-in visitors may see the shell briefly before the redirect fires (accepted).
-- Minor CTA layout-in on resolve; acceptable for this slice.
+- Returning logged-in visitors never see the marketing page — loader → `/dashboard`. Jump fixed.
+- First-time logged-out visitors see a brief neutral loader before the marketing page.
+- SSR renders the loader too, so the first paint is the loader for everyone until the client
+  resolves the session; no hydration mismatch.
 
 ## ADR-003: `returnTo` precedence on `/login`
 

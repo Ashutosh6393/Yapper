@@ -10,8 +10,9 @@ for the "why client-side" rationale (cross-origin session cookie → web-origin 
 
 - **Logged in** → `router.replace("/dashboard")`. Marketing OAuth CTAs are not shown.
 - **Logged out** (session resolved) → full marketing page renders, including OAuth CTAs. No redirect.
-- **Session pending** → the static marketing shell renders immediately (no blank flash), but the
-  OAuth CTAs and the redirect are suppressed until the session resolves (approach **A1**).
+- **Session pending** → a neutral loader renders (not the marketing page), so a returning
+  logged-in visitor never sees the marketing page flash before the redirect (approach **A2**;
+  supersedes the original A1 shell — see decisions.md ADR-002).
 
 ### `/login`
 
@@ -38,7 +39,7 @@ for the "why client-side" rationale (cross-origin session cookie → web-origin 
 
 1. Logged-in on `/` → `replace("/dashboard")`, no CTAs.
 2. Logged-out on `/` → marketing shell + CTAs render, no redirect.
-3. Pending on `/` → shell shows, no redirect fired.
+3. Pending on `/` → neutral loader shows (no marketing page, no CTAs), no redirect fired.
 4. Logged-in on `/login` (no `returnTo`) → `replace("/dashboard")`.
 5. Logged-in on `/login?returnTo=/share/abc` → `replace("/share/abc")`.
 6. Logged-out on `/login` → buttons render, no redirect.
