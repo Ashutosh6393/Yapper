@@ -5,12 +5,15 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
+    alias: [
       // Workspace package exports raw .ts (no build step); point Vitest at the source.
-      "@yapper/schemas": fileURLToPath(
-        new URL("../../packages/schemas/src/index.ts", import.meta.url),
-      ),
-    },
+      {
+        find: "@yapper/schemas",
+        replacement: fileURLToPath(new URL("../../packages/schemas/src/index.ts", import.meta.url)),
+      },
+      // Mirror tsconfig's `@/*` → `./*` app-root alias so tests can import shadcn/ui + lib modules.
+      { find: /^@\//, replacement: fileURLToPath(new URL("./", import.meta.url)) },
+    ],
   },
   test: {
     environment: "jsdom",

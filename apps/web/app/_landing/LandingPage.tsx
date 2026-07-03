@@ -1,7 +1,9 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { signIn } from "../../lib/auth-client";
+import { signIn, useSession } from "../../lib/auth-client";
 
 /**
  * Slice 08 — the logged-out marketing landing page at `/`.
@@ -224,6 +226,17 @@ const features = [
 export default function LandingPage() {
   const rootRef = useRef<HTMLDivElement>(null);
 
+  // Entry-surface redirect (spec 10 / ADR-0001, ADR-002): logged-in visitors are bounced to
+  // /dashboard client-side (the session cookie lives on the api origin, invisible to web-origin
+  // middleware). Approach A2: while the session is pending we render a neutral loader instead of
+  // the marketing page, so a returning logged-in visitor never sees the marketing page flash
+  // before the redirect. The marketing page renders only once the session resolves logged-out.
+  const { data: session, isPending } = useSession();
+  const router = useRouter();
+  useEffect(() => {
+    if (!isPending && session) router.replace("/dashboard");
+  }, [isPending, session, router]);
+
   // Scroll-reveal, mirroring the imported design's IntersectionObserver. Content is visible by
   // default (SSR/no-JS friendly); we only add the hidden+transition classes when motion is allowed.
   useEffect(() => {
@@ -269,6 +282,19 @@ export default function LandingPage() {
       cardIo.disconnect();
     };
   }, []);
+
+  // Session still resolving: neutral loader, no marketing page (A2). SSR renders this too, so the
+  // first paint is the loader for everyone until the client learns whether to redirect.
+  if (isPending) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+        Loading…
+      </main>
+    );
+  }
+  // Resolved logged-in: render nothing while the redirect effect above navigates to /dashboard.
+  if (session) return null;
 
   return (
     <div ref={rootRef} className="lp-root bg-ink font-sans text-fg m-0 p-0">
