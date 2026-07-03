@@ -6,13 +6,15 @@ export const noteSummarySchema = z.object({
   id: z.string(),
   title: z.string(),
   preview: z.string(),
+  access: noteAccessSchema,
   updatedAt: z.string(),
 });
 export type NoteSummary = z.infer<typeof noteSummarySchema>;
 
-/** A "Shared with me" row — a summary plus the note-level access role. (`GET /api/notes/shared`) */
+/** A "Shared with me" row — a summary plus the note-level access role and owner display name.
+ * (`GET /api/notes/shared`) */
 export const sharedNoteSummarySchema = noteSummarySchema.extend({
-  access: noteAccessSchema,
+  ownerName: z.string(),
 });
 export type SharedNoteSummary = z.infer<typeof sharedNoteSummarySchema>;
 

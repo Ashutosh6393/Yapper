@@ -10,12 +10,18 @@ const summary = {
   id: "11111111-1111-1111-1111-111111111111",
   title: "Untitled",
   preview: "",
+  access: "private" as const,
   updatedAt: "2026-06-29T00:00:00.000Z",
 };
 
 describe("noteSummarySchema", () => {
-  it("accepts a metadata-only list row", () => {
+  it("accepts a metadata-only list row with access", () => {
     expect(noteSummarySchema.parse(summary)).toEqual(summary);
+  });
+
+  it("rejects a row missing access", () => {
+    const { access, ...noAccess } = summary;
+    expect(noteSummarySchema.safeParse(noAccess).success).toBe(false);
   });
 
   it("rejects a row missing required fields", () => {
@@ -24,13 +30,19 @@ describe("noteSummarySchema", () => {
 });
 
 describe("sharedNoteSummarySchema", () => {
-  it("adds the access level to a summary", () => {
-    const shared = { ...summary, access: "view" as const };
+  it("adds the owner name to a summary", () => {
+    const shared = { ...summary, access: "view" as const, ownerName: "Jess Park" };
     expect(sharedNoteSummarySchema.parse(shared)).toEqual(shared);
   });
 
+  it("rejects a shared row missing ownerName", () => {
+    expect(sharedNoteSummarySchema.safeParse({ ...summary, access: "view" }).success).toBe(false);
+  });
+
   it("rejects an unknown access level", () => {
-    expect(sharedNoteSummarySchema.safeParse({ ...summary, access: "none" }).success).toBe(false);
+    expect(
+      sharedNoteSummarySchema.safeParse({ ...summary, access: "none", ownerName: "x" }).success,
+    ).toBe(false);
   });
 });
 
