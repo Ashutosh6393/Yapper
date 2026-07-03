@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import type { NoteSummary, SharedNoteSummary } from "@yapper/schemas";
-import { PenLine } from "lucide-react";
+import { Loader2, PenLine } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { NoteDialog } from "@/components/dashboard/note-dialog";
@@ -39,6 +39,7 @@ export default function DashboardPage() {
 
   const [search, setSearch] = useState("");
   const [dialogNoteId, setDialogNoteId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
@@ -61,11 +62,17 @@ export default function DashboardPage() {
   );
 
   if (isPending) {
-    return <main className="p-12 text-muted-foreground">Loading…</main>;
+    return (
+      <main className="flex min-h-dvh items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+        Loading…
+      </main>
+    );
   }
   if (!session) return null;
 
   async function createAndOpen() {
+    setSidebarOpen(false);
     try {
       const note = await createNote.mutateAsync();
       setDialogNoteId(note.id);
@@ -76,13 +83,14 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar onNewNote={createAndOpen} />
+      <Sidebar onNewNote={createAndOpen} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden md:ml-60">
         <TopBar
           search={search}
           onSearch={setSearch}
           onRefresh={() => queryClient.invalidateQueries({ queryKey: noteKeys.all })}
           email={session.user.email}
+          onMenuClick={() => setSidebarOpen(true)}
           onSignOut={async () => {
             await signOut();
             router.replace("/login");

@@ -36,4 +36,11 @@ describe("TopBar", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: /sign out/i }));
     expect(onSignOut).toHaveBeenCalledOnce();
   });
+
+  it("calls onMenuClick when the hamburger is clicked", async () => {
+    const onMenuClick = vi.fn();
+    render(<TopBar {...base} onMenuClick={onMenuClick} />);
+    await userEvent.click(screen.getByRole("button", { name: /open menu/i }));
+    expect(onMenuClick).toHaveBeenCalledOnce();
+  });
 });

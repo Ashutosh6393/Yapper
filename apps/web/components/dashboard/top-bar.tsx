@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, RefreshCw, Search } from "lucide-react";
+import { LogOut, Menu, RefreshCw, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,15 +19,27 @@ export function TopBar({
   onRefresh,
   email,
   onSignOut,
+  onMenuClick,
 }: {
   search: string;
   onSearch: (v: string) => void;
   onRefresh: () => void;
   email: string;
   onSignOut: () => void;
+  onMenuClick?: () => void;
 }) {
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-border bg-background/90 px-6 backdrop-blur">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Open menu"
+        onClick={onMenuClick}
+        className="md:hidden"
+      >
+        <Menu className="size-5" />
+      </Button>
       <div className="relative w-full max-w-[240px]">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input

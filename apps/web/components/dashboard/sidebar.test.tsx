@@ -16,4 +16,11 @@ describe("Sidebar", () => {
     await userEvent.click(screen.getByRole("button", { name: /New Note/i }));
     expect(onNewNote).toHaveBeenCalledOnce();
   });
+
+  it("calls onClose when the mobile backdrop is tapped", async () => {
+    const onClose = vi.fn();
+    render(<Sidebar onNewNote={vi.fn()} open onClose={onClose} />);
+    await userEvent.click(screen.getByRole("button", { name: /close menu/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });
