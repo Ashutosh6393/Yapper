@@ -1,8 +1,14 @@
 # 12 · Note Lifecycle & Labels — Implementation
 
-## Status: not-started
+## Status: in-progress (12a done)
 
 ## Completed
+- **12a — DB schema.** Added `archivedAt`/`trashedAt` nullable timestamps + `note_trashed_at_idx`
+  to `note`; new `label` (owner-scoped, unique `(ownerId,name)`, palette-key `color` default
+  `slate`) and `note_label` (composite PK, both FKs cascade, `note_label_label_id_idx`) tables;
+  inferred `Label`/`NewLabel`/`NoteLabel`/`NewNoteLabel` types. Migration `0002_useful_ogun.sql`
+  generated + applied. `schema.test.ts` extended first (lifecycle defaults, label create/attach/
+  unique/cascade) — 3/3 pass, `tsc` + Biome clean.
 
 ## In Progress
 
