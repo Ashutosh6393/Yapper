@@ -12,16 +12,26 @@ import { apiFetch } from "../http";
 /** Query-key factory so mutations can invalidate the right slices of the notes cache. */
 export const noteKeys = {
   all: ["notes"] as const,
-  list: () => [...noteKeys.all, "list"] as const,
+  list: (filter: string, labelId?: string | null) =>
+    [...noteKeys.all, "list", filter, labelId ?? null] as const,
   shared: () => [...noteKeys.all, "shared"] as const,
   detail: (id: string) => [...noteKeys.all, "detail", id] as const,
 };
 
-/** "My Notes" — the caller's owned notes (metadata only). */
-export function useNotes() {
+/** Owned notes for one lifecycle view (metadata + embedded labels). `active` (default) excludes
+ * archived/trashed; a `labelId` filters active notes to that label. Keyed per (filter,label) so
+ * each view caches independently. `enabled: false` skips the fetch (e.g. on the Shared view). */
+export function useNotes(
+  filter: "active" | "archived" | "trashed" = "active",
+  labelId?: string | null,
+  enabled = true,
+) {
+  const params = new URLSearchParams({ filter });
+  if (labelId) params.set("label", labelId);
   return useQuery({
-    queryKey: noteKeys.list(),
-    queryFn: async () => noteSummarySchema.array().parse(await apiFetch("/api/notes")),
+    queryKey: noteKeys.list(filter, labelId),
+    queryFn: async () => noteSummarySchema.array().parse(await apiFetch(`/api/notes?${params}`)),
+    enabled,
   });
 }
 
@@ -47,21 +57,45 @@ export function useCreateNote() {
   return useMutation({
     mutationFn: async () =>
       createNoteResponseSchema.parse(await apiFetch("/api/notes", { method: "POST" })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.list() }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.all }),
   });
 }
 
-export function useDeleteNote() {
+/** Shared shape for the note lifecycle mutations: hit a per-id endpoint, then invalidate every
+ * notes list/shared slice so whichever view is active refetches. */
+function useNoteLifecycleMutation(path: (id: string) => string, method: "POST" | "DELETE") {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      await apiFetch(`/api/notes/${id}`, { method: "DELETE" });
+      await apiFetch(path(id), { method });
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: noteKeys.list() });
-      qc.invalidateQueries({ queryKey: noteKeys.shared() });
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.all }),
   });
+}
+
+/** Archive an owned note (My Notes → Archive). Reversible; no collaborator impact. */
+export function useArchiveNote() {
+  return useNoteLifecycleMutation((id) => `/api/notes/${id}/archive`, "POST");
+}
+
+/** Unarchive an owned note (Archive → My Notes). */
+export function useUnarchiveNote() {
+  return useNoteLifecycleMutation((id) => `/api/notes/${id}/unarchive`, "POST");
+}
+
+/** Move an owned note to Trash (soft delete). Reversible via restore. */
+export function useTrashNote() {
+  return useNoteLifecycleMutation((id) => `/api/notes/${id}/trash`, "POST");
+}
+
+/** Restore a trashed note back to active. */
+export function useRestoreNote() {
+  return useNoteLifecycleMutation((id) => `/api/notes/${id}/restore`, "POST");
+}
+
+/** Permanently delete a trashed note (irreversible; server 409s unless already trashed). */
+export function usePermanentDelete() {
+  return useNoteLifecycleMutation((id) => `/api/notes/${id}`, "DELETE");
 }
 
 /** Enable/update sharing for a note; invalidates that note's metadata so `access` refreshes. */
@@ -88,8 +122,7 @@ export function useMakePrivate(id: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: noteKeys.detail(id) });
-      qc.invalidateQueries({ queryKey: noteKeys.shared() });
-      qc.invalidateQueries({ queryKey: noteKeys.list() });
+      qc.invalidateQueries({ queryKey: noteKeys.all });
     },
   });
 }

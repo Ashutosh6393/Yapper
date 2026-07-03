@@ -2,15 +2,42 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// A controllable URL — the page reads the active view from useSearchParams().
+let currentParams = new URLSearchParams();
+const setParams = (qs: string) => {
+  currentParams = new URLSearchParams(qs);
+};
+const pushMock = vi.fn();
+
 vi.mock("../../lib/auth-client", () => ({
   signOut: vi.fn(),
   useSession: () => ({ data: { user: { email: "me@x.co" } }, isPending: false }),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: pushMock }),
+  useSearchParams: () => currentParams,
+}));
 
-// Editor/ShareDialog reach the network — stub them out of the page tree.
 vi.mock("../notes/[id]/Editor", () => ({ Editor: () => <div>editor</div> }));
 vi.mock("../notes/[id]/ShareDialog", () => ({ ShareDialog: () => <div>share</div> }));
+
+const activeNote = {
+  id: "act",
+  title: "ActiveNote",
+  preview: "",
+  access: "private" as const,
+  updatedAt: "2026-06-29T00:00:00.000Z",
+  labels: [],
+};
+const archivedNote = { ...activeNote, id: "arc", title: "ArchivedNote" };
+const trashedNote = { ...activeNote, id: "trs", title: "TrashedNote" };
+const sharedNote = {
+  ...activeNote,
+  id: "shr",
+  title: "SharedNote",
+  access: "edit" as const,
+  ownerName: "Jess",
+};
 
 const createMock = vi.fn(async () => ({
   id: "new-1",
@@ -18,80 +45,90 @@ const createMock = vi.fn(async () => ({
   access: "private",
   updatedAt: "",
 }));
+const archiveMock = vi.fn();
+const trashMock = vi.fn();
+const restoreMock = vi.fn();
 const deleteMock = vi.fn();
-const invalidateMock = vi.fn();
+
 vi.mock("../../lib/queries/notes", () => ({
   noteKeys: { all: ["notes"] },
-  useNotes: () => ({
+  useNotes: (filter: string) => ({
     isPending: false,
-    data: [
-      {
-        id: "a",
-        title: "Alpha",
-        preview: "first",
-        access: "private",
-        updatedAt: "2026-06-29T00:00:00.000Z",
-      },
-      {
-        id: "b",
-        title: "Beta",
-        preview: "second",
-        access: "view",
-        updatedAt: "2026-06-29T00:00:00.000Z",
-      },
-    ],
+    data:
+      filter === "archived" ? [archivedNote] : filter === "trashed" ? [trashedNote] : [activeNote],
   }),
-  useSharedNotes: () => ({
-    isPending: false,
-    data: [
-      {
-        id: "s",
-        title: "Gamma",
-        preview: "shared",
-        access: "edit",
-        ownerName: "Jess",
-        updatedAt: "2026-06-29T00:00:00.000Z",
-      },
-    ],
-  }),
+  useSharedNotes: () => ({ isPending: false, data: [sharedNote] }),
   useCreateNote: () => ({ mutateAsync: createMock, isPending: false }),
-  useDeleteNote: () => ({ mutate: deleteMock }),
+  useArchiveNote: () => ({ mutate: archiveMock }),
+  useUnarchiveNote: () => ({ mutate: vi.fn() }),
+  useTrashNote: () => ({ mutate: trashMock }),
+  useRestoreNote: () => ({ mutate: restoreMock }),
+  usePermanentDelete: () => ({ mutate: deleteMock }),
   useNote: () => ({ data: { id: "new-1", title: "Untitled", access: "private", isOwner: true } }),
 }));
 vi.mock("@tanstack/react-query", async (orig) => ({
   ...(await orig<typeof import("@tanstack/react-query")>()),
-  useQueryClient: () => ({ invalidateQueries: invalidateMock }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
 import DashboardPage from "./page";
 
-describe("DashboardPage (spec 11 goal state)", () => {
+describe("DashboardPage (spec 12 — single URL-driven view)", () => {
   beforeEach(() => {
-    createMock.mockClear();
+    setParams("");
+    pushMock.mockClear();
+    archiveMock.mockClear();
+    trashMock.mockClear();
+    restoreMock.mockClear();
     deleteMock.mockClear();
-    invalidateMock.mockClear();
   });
 
-  it("renders My Notes and Shared with Me from query data", () => {
+  it("defaults to My Notes and shows only the active list", () => {
     render(<DashboardPage />);
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
-    expect(screen.getByText("Beta")).toBeInTheDocument();
-    expect(screen.getByText("Gamma")).toBeInTheDocument();
-    expect(screen.getByText(/Jess's note/i)).toBeInTheDocument();
+    expect(screen.getByText("ActiveNote")).toBeInTheDocument();
+    expect(screen.queryByText("SharedNote")).not.toBeInTheDocument();
   });
 
-  it("filters both sections by the search query", async () => {
+  it("clicking a sidebar tab navigates via the URL", async () => {
     render(<DashboardPage />);
-    await userEvent.type(screen.getByPlaceholderText(/Search notes/i), "alpha");
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
-    expect(screen.queryByText("Beta")).not.toBeInTheDocument();
-    expect(screen.queryByText("Gamma")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Trash" }));
+    expect(pushMock).toHaveBeenCalledWith("/dashboard?view=trash");
   });
 
-  it("refresh invalidates the notes queries", async () => {
+  it("My Notes card: Move to Trash calls the trash mutation", async () => {
     render(<DashboardPage />);
-    await userEvent.click(screen.getByRole("button", { name: /refresh/i }));
-    expect(invalidateMock).toHaveBeenCalledWith({ queryKey: ["notes"] });
+    await userEvent.click(screen.getByRole("button", { name: /note actions/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /move to trash/i }));
+    expect(trashMock).toHaveBeenCalledWith("act");
+  });
+
+  it("Trash view: Restore calls the restore mutation; cards are not openable", async () => {
+    setParams("view=trash");
+    render(<DashboardPage />);
+    expect(screen.getByText("TrashedNote")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /note actions/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /^restore$/i }));
+    expect(restoreMock).toHaveBeenCalledWith("trs");
+  });
+
+  it("Shared view lists shared notes and shows no card menu", () => {
+    setParams("view=shared");
+    render(<DashboardPage />);
+    expect(screen.getByText("SharedNote")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /note actions/i })).not.toBeInTheDocument();
+  });
+
+  it("search filters the active view and clears when the view switches", async () => {
+    const { rerender } = render(<DashboardPage />);
+    const box = screen.getByPlaceholderText(/Search notes/i);
+    await userEvent.type(box, "zzz");
+    expect(screen.queryByText("ActiveNote")).not.toBeInTheDocument();
+
+    // Switch view → the search resets and the new view renders.
+    setParams("view=archive");
+    rerender(<DashboardPage />);
+    await waitFor(() => expect(screen.getByText("ArchivedNote")).toBeInTheDocument());
+    expect((screen.getByPlaceholderText(/Search notes/i) as HTMLInputElement).value).toBe("");
   });
 
   it("New Note creates a note and opens the dialog", async () => {

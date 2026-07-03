@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useSession } from "../../../lib/auth-client";
-import { useDeleteNote, useNote } from "../../../lib/queries/notes";
+import { useNote, useTrashNote } from "../../../lib/queries/notes";
 import { Editor } from "./Editor";
 import { ShareDialog } from "./ShareDialog";
 
@@ -18,7 +18,7 @@ export default function NotePage() {
   const id = params.id;
 
   const noteQuery = useNote(id);
-  const deleteNote = useDeleteNote();
+  const trashNote = useTrashNote();
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
@@ -27,9 +27,9 @@ export default function NotePage() {
   if (isPending) return <main className={`${SHELL} text-muted-foreground`}>Loading…</main>;
   if (!session) return null;
 
-  async function handleDelete() {
+  async function handleTrash() {
     try {
-      await deleteNote.mutateAsync(id);
+      await trashNote.mutateAsync(id);
       router.push("/dashboard");
     } catch {
       // mutation state re-enables the button; nothing else to surface here
@@ -70,10 +70,10 @@ export default function NotePage() {
                 type="button"
                 variant="destructive"
                 size="sm"
-                onClick={handleDelete}
-                disabled={deleteNote.isPending}
+                onClick={handleTrash}
+                disabled={trashNote.isPending}
               >
-                {deleteNote.isPending ? "Deleting…" : "Delete"}
+                {trashNote.isPending ? "Moving…" : "Move to Trash"}
               </Button>
             </>
           ) : null}

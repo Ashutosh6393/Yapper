@@ -3,20 +3,25 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { NoteSummary, SharedNoteSummary } from "@yapper/schemas";
 import { Loader2, PenLine } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { NoteDialog } from "@/components/dashboard/note-dialog";
 import { NoteSection } from "@/components/dashboard/note-section";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { TopBar } from "@/components/dashboard/top-bar";
 import { Input } from "@/components/ui/input";
+import { type DashboardView, filterForView, readActiveView, viewQuery } from "@/lib/dashboard-view";
 import { signOut, useSession } from "../../lib/auth-client";
 import {
   noteKeys,
+  useArchiveNote,
   useCreateNote,
-  useDeleteNote,
   useNotes,
+  usePermanentDelete,
+  useRestoreNote,
   useSharedNotes,
+  useTrashNote,
+  useUnarchiveNote,
 } from "../../lib/queries/notes";
 
 function matches(note: NoteSummary, q: string): boolean {
@@ -25,17 +30,34 @@ function matches(note: NoteSummary, q: string): boolean {
   return note.title.toLowerCase().includes(needle) || note.preview.toLowerCase().includes(needle);
 }
 
-/** Redesigned dashboard: sidebar + top bar shell, My Notes / Shared sections, live search, and a
- * note dialog (new + existing). Session-gated client-side; logged-out visitors go to /login. */
+/** Copy per view: section heading + empty-state text + the note-card variant. */
+const VIEW_META: Record<DashboardView, { label: string; empty: string }> = {
+  my: { label: "My Notes", empty: "No notes yet. Create your first one." },
+  shared: { label: "Shared with Me", empty: "No notes shared with you yet." },
+  archive: { label: "Archive", empty: "No archived notes." },
+  trash: { label: "Trash", empty: "Trash is empty." },
+};
+
+/** Redesigned dashboard: sidebar + top bar shell rendering a SINGLE active view (My Notes /
+ * Shared / Archive / Trash / label filter), driven by the URL. Per-view card actions
+ * (archive/trash/restore/delete-forever); live search scoped to the active view. */
 export default function DashboardPage() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const notesQuery = useNotes();
+  const { view, labelId } = readActiveView(searchParams);
+  const isShared = view === "shared";
+
+  const notesQuery = useNotes(filterForView(view), labelId, !isShared);
   const sharedQuery = useSharedNotes();
   const createNote = useCreateNote();
-  const deleteNote = useDeleteNote();
+  const archiveNote = useArchiveNote();
+  const unarchiveNote = useUnarchiveNote();
+  const trashNote = useTrashNote();
+  const restoreNote = useRestoreNote();
+  const permanentDelete = usePermanentDelete();
 
   const [search, setSearch] = useState("");
   const [dialogNoteId, setDialogNoteId] = useState<string | null>(null);
@@ -44,6 +66,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
   }, [isPending, session, router]);
+
+  // Search is scoped to the active view and clears whenever the view (or label) switches.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on view/label change only.
+  useEffect(() => {
+    setSearch("");
+  }, [view, labelId]);
 
   const owned = useMemo(
     () => (notesQuery.data ?? []).filter((n) => matches(n, search)),
@@ -81,9 +109,25 @@ export default function DashboardPage() {
     }
   }
 
+  function navigate(next: DashboardView) {
+    setSidebarOpen(false);
+    router.push(viewQuery(next));
+  }
+
+  const heading = labelId ? "Labeled notes" : VIEW_META[view].label;
+  const sectionNotes = isShared ? shared : owned;
+  const sectionLoading = isShared ? sharedQuery.isPending : notesQuery.isPending;
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar onNewNote={createAndOpen} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        activeView={view}
+        labelActive={labelId !== null}
+        onSelectView={navigate}
+        onNewNote={createAndOpen}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
       <div className="flex flex-1 flex-col overflow-hidden md:ml-60">
         <TopBar
           search={search}
@@ -110,21 +154,26 @@ export default function DashboardPage() {
           </div>
 
           <NoteSection
-            label="My Notes"
-            loading={notesQuery.isPending}
-            notes={owned}
-            emptyText="No notes yet. Create your first one."
+            label={heading}
+            loading={sectionLoading}
+            notes={sectionNotes}
+            variant={
+              isShared
+                ? "shared"
+                : view === "archive"
+                  ? "archive"
+                  : view === "trash"
+                    ? "trash"
+                    : "my"
+            }
+            ownerNames={isShared ? ownerNames : undefined}
+            emptyText={VIEW_META[view].empty}
             onOpen={setDialogNoteId}
-            onDelete={(id) => deleteNote.mutate(id)}
-          />
-          <NoteSection
-            label="Shared with Me"
-            loading={sharedQuery.isPending}
-            notes={shared}
-            ownerNames={ownerNames}
-            emptyText="No notes shared with you yet."
-            onOpen={setDialogNoteId}
-            onDelete={(id) => deleteNote.mutate(id)}
+            onArchive={(id) => archiveNote.mutate(id)}
+            onUnarchive={(id) => unarchiveNote.mutate(id)}
+            onTrash={(id) => trashNote.mutate(id)}
+            onRestore={(id) => restoreNote.mutate(id)}
+            onDeleteForever={(id) => permanentDelete.mutate(id)}
           />
         </main>
       </div>

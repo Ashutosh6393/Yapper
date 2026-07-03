@@ -1,6 +1,6 @@
 # 12 · Note Lifecycle & Labels — Implementation
 
-## Status: in-progress (12a, 12b done)
+## Status: in-progress (12a, 12b, 12c done)
 
 ## Completed
 - **12a — DB schema.** Added `archivedAt`/`trashedAt` nullable timestamps + `note_trashed_at_idx`
@@ -23,9 +23,23 @@
     to owner's labels); `cron.ts` `purgeTrash()` + hourly `startTrashPurgeScheduler` wired in
     `index.ts`; shared `authed.ts` extracted. 30 pass (`bun test --timeout 30000` — Neon latency).
   - Gotcha: drizzle `exists()` subquery cannot project the outer table's column — select `sql\`1\``.
+- **12c — Web lifecycle & working sidebar.**
+  - `lib/dashboard-view.ts`: URL view-model (`readActiveView`, `filterForView`, `viewQuery`,
+    `labelQuery`) — one active view via `?view=`/`?label=`, default My Notes.
+  - `lib/queries/notes.ts`: `useNotes(filter, labelId?, enabled?)` keyed per (filter,label);
+    `noteKeys.list(filter, labelId)`; new `useArchiveNote/useUnarchiveNote/useTrashNote/
+    useRestoreNote/usePermanentDelete` (invalidate `noteKeys.all`); removed `useDeleteNote`.
+  - `sidebar.tsx`: nav tabs are buttons reflecting `activeView` (`aria-current` from URL) →
+    `onSelectView`; label view highlights none. `note-card.tsx`: `variant` prop (my|archive|
+    trash|shared) drives the ⋮ menu; trash cards non-openable; Delete forever confirms via Dialog;
+    `Labels…` item shown only when `onEditLabels` provided (wired in 12d). `note-section.tsx`
+    forwards variant + lifecycle handlers.
+  - `app/dashboard/page.tsx`: single active-view section, URL-driven nav, search resets on view
+    switch. `app/notes/[id]/page.tsx`: "Delete" → "Move to Trash" (`useTrashNote`).
+  - Tests rewritten first (sidebar/note-card/note-section/notes-hook/dashboard-page) — 41 web
+    tests pass, `tsc` + Biome clean.
 
-## Next: 12c (web lifecycle) will also fix web `tsc` — the `noteSummary.labels` contract change
-ripples into web fixtures, repaired in that slice.
+## Next: 12d — labels UI (query hooks, sidebar Labels section, card chips, Labels… editor).
 
 ## In Progress
 
