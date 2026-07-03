@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { db, note, noteCollaborator } from "@yapper/db";
+import { db, note, noteCollaborator, user } from "@yapper/db";
 import { bustNotePermissions, revokeChannel, roleChangeChannel } from "@yapper/permissions";
 import { shareNoteBodySchema } from "@yapper/schemas";
 import { and, desc, eq, ne } from "drizzle-orm";
@@ -68,6 +68,7 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
           id: note.id,
           title: note.title,
           preview: note.preview,
+          access: note.access,
           updatedAt: note.updatedAt,
         })
         .from(note)
@@ -89,9 +90,11 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
           preview: note.preview,
           access: note.access,
           updatedAt: note.updatedAt,
+          ownerName: user.name,
         })
         .from(noteCollaborator)
         .innerJoin(note, eq(noteCollaborator.noteId, note.id))
+        .innerJoin(user, eq(note.ownerId, user.id))
         .where(
           and(
             eq(noteCollaborator.userId, userId),

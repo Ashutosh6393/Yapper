@@ -1,8 +1,10 @@
 # 11 · Dashboard Redesign — Implementation
 
-## Status: not-started
+## Status: in-progress
 
 ## Completed
+- **Task 1** — `@yapper/schemas`: `access` added to `noteSummarySchema` (base), `ownerName` added to
+  `sharedNoteSummarySchema`. Tests red→green (9 pass). Committed.
 
 ## In Progress
 

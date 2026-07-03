@@ -67,8 +67,9 @@ test("GET /api/notes lists only the caller's notes, metadata only", async () => 
   expect(mine.status).toBe(200);
   const found = mine.body.find((n: { id: string }) => n.id === noteId);
   expect(found).toBeDefined();
-  // List returns metadata only — never the CRDT blob.
-  expect(Object.keys(found).sort()).toEqual(["id", "preview", "title", "updatedAt"]);
+  // List returns metadata only (+access) — never the CRDT blob.
+  expect(Object.keys(found).sort()).toEqual(["access", "id", "preview", "title", "updatedAt"]);
+  expect(found.access).toBe("private");
   expect(found.state).toBeUndefined();
 
   // The other user does not see it.
