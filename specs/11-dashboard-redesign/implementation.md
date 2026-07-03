@@ -26,4 +26,5 @@
 - Key decisions: reuse `Editor`+`ShareDialog` in the dialog (ADR-001); add real `access`/`ownerName`
   fields (ADR-002); consume existing theme tokens, no `globals.css` change (ADR-003); lucide-react
   (ADR-004).
-- Next: awaiting spec review, then writing-plans for the implementation plan.
+- Spec reviewed and approved. Implementation plan written to `plan.md` (10 tasks, TDD, bite-sized).
+- Next: execute the plan task-by-task (see `plan.md`).
