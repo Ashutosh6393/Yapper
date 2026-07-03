@@ -5,6 +5,8 @@
 ## Completed
 - **Task 1** — `@yapper/schemas`: `access` added to `noteSummarySchema` (base), `ownerName` added to
   `sharedNoteSummarySchema`. Tests red→green (9 pass). Committed.
+- **Task 2** — `apps/api`: `GET /` owned list now returns `access`; `GET /shared` joins `user` and
+  returns `ownerName` (name only — no other user columns). Tests red→green (13 pass). Committed.
 
 ## In Progress
 
