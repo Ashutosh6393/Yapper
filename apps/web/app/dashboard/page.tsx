@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import type { NoteSummary, SharedNoteSummary } from "@yapper/schemas";
+import { PenLine } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { NoteDialog } from "@/components/dashboard/note-dialog";
@@ -76,7 +77,7 @@ export default function DashboardPage() {
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar onNewNote={createAndOpen} />
-      <div className="ml-60 flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden md:ml-60">
         <TopBar
           search={search}
           onSearch={setSearch}
@@ -89,12 +90,15 @@ export default function DashboardPage() {
         />
         <main className="flex-1 overflow-y-auto px-7 pt-7 pb-24">
           <div className="mx-auto mb-9 max-w-xl">
-            <Input
-              readOnly
-              onClick={createAndOpen}
-              placeholder="Start a new note…"
-              className="cursor-pointer"
-            />
+            <div className="relative">
+              <PenLine className="pointer-events-none absolute top-1/2 left-5 size-[18px] -translate-y-1/2 text-muted-foreground" />
+              <Input
+                readOnly
+                onClick={createAndOpen}
+                placeholder="Start a new note…"
+                className="h-14 cursor-pointer rounded-full border-transparent pl-12 text-base shadow-none ring-1 ring-border transition-shadow hover:ring-primary/40 focus-visible:ring-2 focus-visible:ring-primary"
+              />
+            </div>
           </div>
 
           <NoteSection

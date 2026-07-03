@@ -28,7 +28,7 @@ export function TopBar({
 }) {
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-border bg-background/90 px-6 backdrop-blur">
-      <div className="relative w-full max-w-sm">
+      <div className="relative w-full max-w-[240px]">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={search}
@@ -38,6 +38,7 @@ export function TopBar({
         />
       </div>
       <div className="flex items-center gap-1">
+        <ThemeToggle />
         <Button type="button" variant="ghost" size="icon" aria-label="Refresh" onClick={onRefresh}>
           <RefreshCw className="size-5" />
         </Button>
@@ -55,11 +56,6 @@ export function TopBar({
             <DropdownMenuLabel className="truncate text-muted-foreground">
               {email}
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <div className="flex items-center justify-between px-2 py-1 text-sm">
-              Theme
-              <ThemeToggle />
-            </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={onSignOut}>
               <LogOut className="size-4" />

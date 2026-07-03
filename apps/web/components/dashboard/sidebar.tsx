@@ -13,17 +13,9 @@ const NAV = [
 /** Fixed left sidebar: brand, nav (My Notes active; others static), and the New Note action. */
 export function Sidebar({ onNewNote }: { onNewNote: () => void }) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-border bg-background pt-4">
-      <div className="flex items-center gap-2 px-5 pb-5">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <PenLine className="size-4" />
-        </div>
-        <div>
-          <div className="text-[17px] font-extrabold tracking-tight leading-none">Yapper</div>
-          <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Notes
-          </div>
-        </div>
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-background pt-4 md:flex">
+      <div className="flex items-center px-5 pb-5">
+        <div className="text-2xl font-extrabold tracking-tight leading-none">Yapper</div>
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5 pr-3">

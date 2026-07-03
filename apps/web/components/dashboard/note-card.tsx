@@ -23,31 +23,42 @@ export function NoteCard({
 }) {
   const isShared = ownerName !== undefined;
   return (
-    <div className="group rounded-xl border border-border bg-card p-[18px] transition-colors hover:border-primary/30">
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="min-w-0">
+    <div className="group relative rounded-xl border border-border bg-card transition-colors hover:border-primary/30">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="block w-full cursor-pointer rounded-xl p-[18px] text-left"
+      >
+        <div className="mb-2 min-w-0 pr-7">
           {isShared ? (
             <div className="mb-1 truncate text-[10px] font-semibold text-muted-foreground">
               {ownerName}'s note
             </div>
           ) : null}
-          <button
-            type="button"
-            onClick={onOpen}
-            className="block truncate text-left text-sm font-bold tracking-tight hover:underline"
-          >
-            {note.title}
-          </button>
+          <div className="truncate text-sm font-bold tracking-tight">{note.title}</div>
           <div className="mt-1">
             <AccessBadge access={note.access} isShared={isShared} />
           </div>
         </div>
+
+        {note.preview ? (
+          <p className="mb-3 text-[13px] leading-relaxed text-muted-foreground line-clamp-3">
+            {note.preview}
+          </p>
+        ) : null}
+
+        <div className="text-[11px] text-muted-foreground/70">
+          {new Date(note.updatedAt).toLocaleString()}
+        </div>
+      </button>
+
+      <div className="absolute top-[14px] right-[14px]">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
               aria-label="Note actions"
-              className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+              className="rounded-full p-1 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
             >
               <MoreVertical className="size-4" />
             </button>
@@ -59,20 +70,6 @@ export function NoteCard({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-
-      {note.preview ? (
-        <button
-          type="button"
-          onClick={onOpen}
-          className="mb-3 block w-full text-left text-[13px] leading-relaxed text-muted-foreground line-clamp-3"
-        >
-          {note.preview}
-        </button>
-      ) : null}
-
-      <div className="text-[11px] text-muted-foreground/70">
-        {new Date(note.updatedAt).toLocaleString()}
       </div>
     </div>
   );
