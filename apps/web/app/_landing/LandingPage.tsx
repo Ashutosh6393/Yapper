@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { signIn, useSession } from "../../lib/auth-client";
@@ -286,7 +287,8 @@ export default function LandingPage() {
   // first paint is the loader for everyone until the client learns whether to redirect.
   if (isPending) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-background text-sm text-muted-foreground">
+      <main className="flex min-h-dvh items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
         Loading…
       </main>
     );
