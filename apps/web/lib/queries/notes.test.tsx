@@ -27,6 +27,7 @@ describe("useNotes", () => {
         id: "11111111-1111-1111-1111-111111111111",
         title: "Alpha",
         preview: "",
+        access: "private",
         updatedAt: "2026-06-29T00:00:00.000Z",
       },
     ];
