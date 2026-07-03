@@ -3,6 +3,7 @@ import { toNodeHandler } from "better-auth/node";
 import cors from "cors";
 import express, { type Express } from "express";
 import { requireAuth, type SessionResolver } from "./auth/requireAuth";
+import { labelsRouter } from "./labels/router";
 import { notesRouter } from "./notes/router";
 import { shareRouter } from "./share/router";
 
@@ -48,6 +49,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   });
 
   app.use("/api/notes", notesRouter(requireAuth(options.resolveSession)));
+  app.use("/api/labels", labelsRouter(requireAuth(options.resolveSession)));
   app.use("/api/share", shareRouter(requireAuth(options.resolveSession)));
 
   return app;

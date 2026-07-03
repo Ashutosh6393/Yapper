@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
   createNoteResponseSchema,
+  labelChipSchema,
+  noteListQuerySchema,
   noteMetadataSchema,
   noteSummarySchema,
   sharedNoteSummarySchema,
@@ -12,11 +14,31 @@ const summary = {
   preview: "",
   access: "private" as const,
   updatedAt: "2026-06-29T00:00:00.000Z",
+  labels: [],
 };
 
+describe("labelChipSchema", () => {
+  it("accepts a chip with a palette color", () => {
+    const chip = { id: "l1", name: "Work", color: "sky" as const };
+    expect(labelChipSchema.parse(chip)).toEqual(chip);
+  });
+
+  it("rejects a chip with an off-palette color", () => {
+    expect(labelChipSchema.safeParse({ id: "l1", name: "Work", color: "fuchsia" }).success).toBe(
+      false,
+    );
+  });
+});
+
 describe("noteSummarySchema", () => {
-  it("accepts a metadata-only list row with access", () => {
-    expect(noteSummarySchema.parse(summary)).toEqual(summary);
+  it("accepts a metadata-only list row with access and labels", () => {
+    const withLabel = { ...summary, labels: [{ id: "l1", name: "Work", color: "sky" as const }] };
+    expect(noteSummarySchema.parse(withLabel)).toEqual(withLabel);
+  });
+
+  it("defaults labels to an empty array when omitted", () => {
+    const { labels, ...noLabels } = summary;
+    expect(noteSummarySchema.parse(noLabels).labels).toEqual([]);
   });
 
   it("rejects a row missing access", () => {
@@ -26,6 +48,23 @@ describe("noteSummarySchema", () => {
 
   it("rejects a row missing required fields", () => {
     expect(noteSummarySchema.safeParse({ id: "x", title: "t" }).success).toBe(false);
+  });
+});
+
+describe("noteListQuerySchema", () => {
+  it("defaults filter to active with no params", () => {
+    expect(noteListQuerySchema.parse({})).toEqual({ filter: "active" });
+  });
+
+  it("accepts a filter and label", () => {
+    expect(noteListQuerySchema.parse({ filter: "trashed", label: "l1" })).toEqual({
+      filter: "trashed",
+      label: "l1",
+    });
+  });
+
+  it("rejects an unknown filter", () => {
+    expect(noteListQuerySchema.safeParse({ filter: "all" }).success).toBe(false);
   });
 });
 

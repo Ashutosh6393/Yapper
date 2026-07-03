@@ -1,6 +1,6 @@
 # 12 · Note Lifecycle & Labels — Implementation
 
-## Status: in-progress (12a done)
+## Status: in-progress (12a, 12b done)
 
 ## Completed
 - **12a — DB schema.** Added `archivedAt`/`trashedAt` nullable timestamps + `note_trashed_at_idx`
@@ -9,6 +9,23 @@
   inferred `Label`/`NewLabel`/`NoteLabel`/`NewNoteLabel` types. Migration `0002_useful_ogun.sql`
   generated + applied. `schema.test.ts` extended first (lifecycle defaults, label create/attach/
   unique/cascade) — 3/3 pass, `tsc` + Biome clean.
+- **12b — API + schemas + cron.**
+  - `@yapper/schemas`: `labelColorSchema` (palette enum), `labelChipSchema`, `noteSummarySchema`
+    += `labels` (default `[]`), `noteListQuerySchema`; new `label.ts` (`labelSchema`,
+    `createLabelBodySchema`, `setNoteLabelsBodySchema`). Tests updated/added — 34 pass.
+  - `@yapper/permissions`: `PermissionNote` += `trashedAt`; `effectivePermission` → `none` for a
+    non-owner trashed note (owner still edit); `loadNote` selects `trashedAt`. 12 pass.
+  - `apps/api`: parameterized `GET /api/notes?filter=&label=` (default **active-only**, embeds
+    `labels[]` via one grouped query, trash → `[]`); lifecycle routes archive/unarchive/trash/
+    restore (owner-gated, trash/restore bust perms, no revoke publish); guarded `DELETE` (409
+    unless trashed); `/shared` excludes trashed; new `labels/router.ts` (GET w/ active-only counts,
+    POST w/ 409 dup, DELETE) mounted at `/api/labels`; `PUT /api/notes/:id/labels` replace (filters
+    to owner's labels); `cron.ts` `purgeTrash()` + hourly `startTrashPurgeScheduler` wired in
+    `index.ts`; shared `authed.ts` extracted. 30 pass (`bun test --timeout 30000` — Neon latency).
+  - Gotcha: drizzle `exists()` subquery cannot project the outer table's column — select `sql\`1\``.
+
+## Next: 12c (web lifecycle) will also fix web `tsc` — the `noteSummary.labels` contract change
+ripples into web fixtures, repaired in that slice.
 
 ## In Progress
 

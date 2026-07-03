@@ -7,10 +7,10 @@ import type { ResolveDeps } from "./resolve";
  * derivation/cache logic stays db-free and unit-testable by keeping the queries here.
  */
 
-/** Load a note's `ownerId` + `access`, or `null` if it does not exist. */
+/** Load a note's `ownerId` + `access` + `trashedAt`, or `null` if it does not exist. */
 export const loadNote: ResolveDeps["loadNote"] = async (noteId) => {
   const [row] = await db
-    .select({ ownerId: note.ownerId, access: note.access })
+    .select({ ownerId: note.ownerId, access: note.access, trashedAt: note.trashedAt })
     .from(note)
     .where(eq(note.id, noteId))
     .limit(1);

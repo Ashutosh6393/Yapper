@@ -14,3 +14,11 @@ export type NoteAccess = z.infer<typeof noteAccessSchema>;
 /** Response of the Better Auth `/api/auth/token` endpoint — the short-lived JWT for the socket. */
 export const authTokenResponseSchema = z.object({ token: z.string() });
 export type AuthTokenResponse = z.infer<typeof authTokenResponseSchema>;
+
+/**
+ * Fixed label palette (ADR-003). A label's `color` is stored as one of these text keys (not a hex
+ * value, not a DB enum), validated here at the API boundary; the web app maps the key → Tailwind
+ * classes. Editing the palette needs no migration — only this list changes.
+ */
+export const labelColorSchema = z.enum(["slate", "rose", "amber", "emerald", "sky", "violet"]);
+export type LabelColor = z.infer<typeof labelColorSchema>;
