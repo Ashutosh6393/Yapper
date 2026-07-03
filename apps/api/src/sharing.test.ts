@@ -197,7 +197,15 @@ test("GET /api/notes/shared lists joined notes for the collaborator, not for the
   expect(mine.body.some((n: { id: string }) => n.id === noteId)).toBe(true);
   // Metadata only — never the CRDT blob.
   const found = mine.body.find((n: { id: string }) => n.id === noteId);
-  expect(Object.keys(found).sort()).toEqual(["access", "id", "preview", "title", "updatedAt"]);
+  expect(Object.keys(found).sort()).toEqual([
+    "access",
+    "id",
+    "ownerName",
+    "preview",
+    "title",
+    "updatedAt",
+  ]);
+  expect(found.ownerName).toBe("Owner");
 
   // The owner's "shared with me" does not include their own note.
   const ownerShared = await request(app).get("/api/notes/shared").set("x-test-user-id", ownerId);
