@@ -5,13 +5,21 @@ import type { NoteSummary, SharedNoteSummary } from "@yapper/schemas";
 import { Loader2, PenLine } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { LabelEditor } from "@/components/dashboard/label-editor";
 import { NoteDialog } from "@/components/dashboard/note-dialog";
 import { NoteSection } from "@/components/dashboard/note-section";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { TopBar } from "@/components/dashboard/top-bar";
 import { Input } from "@/components/ui/input";
-import { type DashboardView, filterForView, readActiveView, viewQuery } from "@/lib/dashboard-view";
+import {
+  type DashboardView,
+  filterForView,
+  labelQuery,
+  readActiveView,
+  viewQuery,
+} from "@/lib/dashboard-view";
 import { signOut, useSession } from "../../lib/auth-client";
+import { useDeleteLabel, useLabels } from "../../lib/queries/labels";
 import {
   noteKeys,
   useArchiveNote,
@@ -52,15 +60,18 @@ export default function DashboardPage() {
 
   const notesQuery = useNotes(filterForView(view), labelId, !isShared);
   const sharedQuery = useSharedNotes();
+  const labelsQuery = useLabels();
   const createNote = useCreateNote();
   const archiveNote = useArchiveNote();
   const unarchiveNote = useUnarchiveNote();
   const trashNote = useTrashNote();
   const restoreNote = useRestoreNote();
   const permanentDelete = usePermanentDelete();
+  const deleteLabel = useDeleteLabel();
 
   const [search, setSearch] = useState("");
   const [dialogNoteId, setDialogNoteId] = useState<string | null>(null);
+  const [labelsNoteId, setLabelsNoteId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -114,9 +125,25 @@ export default function DashboardPage() {
     router.push(viewQuery(next));
   }
 
-  const heading = labelId ? "Labeled notes" : VIEW_META[view].label;
+  const labels = labelsQuery.data ?? [];
+  const activeLabel = labelId ? labels.find((l) => l.id === labelId) : undefined;
+  const heading = labelId ? (activeLabel?.name ?? "Labeled notes") : VIEW_META[view].label;
   const sectionNotes = isShared ? shared : owned;
   const sectionLoading = isShared ? sharedQuery.isPending : notesQuery.isPending;
+  // The note whose Labels… editor is open (looked up unfiltered so search doesn't hide it).
+  const editingNote = (notesQuery.data ?? []).find((n) => n.id === labelsNoteId);
+  // Labels… is offered only on owned, non-trash cards.
+  const canEditLabels = !isShared && view !== "trash";
+
+  function selectLabel(id: string) {
+    setSidebarOpen(false);
+    router.push(labelQuery(id));
+  }
+
+  function removeLabel(id: string) {
+    deleteLabel.mutate(id);
+    if (id === labelId) router.push(viewQuery("my"));
+  }
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -127,6 +154,10 @@ export default function DashboardPage() {
         onNewNote={createAndOpen}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        labels={labels}
+        activeLabelId={labelId}
+        onSelectLabel={selectLabel}
+        onDeleteLabel={removeLabel}
       />
       <div className="flex flex-1 flex-col overflow-hidden md:ml-60">
         <TopBar
@@ -174,11 +205,21 @@ export default function DashboardPage() {
             onTrash={(id) => trashNote.mutate(id)}
             onRestore={(id) => restoreNote.mutate(id)}
             onDeleteForever={(id) => permanentDelete.mutate(id)}
+            onEditLabels={canEditLabels ? (id) => setLabelsNoteId(id) : undefined}
           />
         </main>
       </div>
 
       <NoteDialog noteId={dialogNoteId} onClose={() => setDialogNoteId(null)} />
+      {labelsNoteId ? (
+        <LabelEditor
+          key={labelsNoteId}
+          noteId={labelsNoteId}
+          attachedIds={editingNote?.labels.map((l) => l.id) ?? []}
+          open
+          onClose={() => setLabelsNoteId(null)}
+        />
+      ) : null}
     </div>
   );
 }

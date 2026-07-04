@@ -1,8 +1,10 @@
 "use client";
 
+import type { Label } from "@yapper/schemas";
 import { Archive, PenLine, Plus, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { DashboardView } from "@/lib/dashboard-view";
+import { LabelNav } from "./label-nav";
 
 const NAV: { label: string; icon: typeof PenLine; view: DashboardView }[] = [
   { label: "My Notes", icon: PenLine, view: "my" },
@@ -23,6 +25,10 @@ export function Sidebar({
   onNewNote,
   open = false,
   onClose,
+  labels = [],
+  activeLabelId = null,
+  onSelectLabel,
+  onDeleteLabel,
 }: {
   activeView?: DashboardView;
   labelActive?: boolean;
@@ -30,6 +36,10 @@ export function Sidebar({
   onNewNote: () => void;
   open?: boolean;
   onClose?: () => void;
+  labels?: Label[];
+  activeLabelId?: string | null;
+  onSelectLabel?: (id: string) => void;
+  onDeleteLabel?: (id: string) => void;
 }) {
   return (
     <>
@@ -50,27 +60,35 @@ export function Sidebar({
           <div className="text-2xl font-extrabold tracking-tight leading-none">Yapper</div>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-0.5 pr-3">
-          {NAV.map(({ label, icon: Icon, view }) => {
-            const active = !labelActive && activeView === view;
-            return (
-              <button
-                key={label}
-                type="button"
-                aria-current={active ? "page" : undefined}
-                onClick={() => onSelectView?.(view)}
-                className={`flex items-center gap-3 rounded-r-full py-2 pr-4 pl-5 text-left text-[13px] font-medium ${
-                  active
-                    ? "bg-white/[0.06] text-primary"
-                    : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
-                }`}
-              >
-                <Icon className="size-[18px]" />
-                {label}
-              </button>
-            );
-          })}
-        </nav>
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          <nav className="flex flex-col gap-0.5 pr-3">
+            {NAV.map(({ label, icon: Icon, view }) => {
+              const active = !labelActive && activeView === view;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => onSelectView?.(view)}
+                  className={`flex items-center gap-3 rounded-r-full py-2 pr-4 pl-5 text-left text-[13px] font-medium ${
+                    active
+                      ? "bg-white/[0.06] text-primary"
+                      : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="size-[18px]" />
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+          <LabelNav
+            labels={labels}
+            activeLabelId={activeLabelId}
+            onSelectLabel={onSelectLabel}
+            onDeleteLabel={onDeleteLabel}
+          />
+        </div>
 
         <div className="p-4">
           <Button type="button" className="w-full gap-2" onClick={onNewNote}>

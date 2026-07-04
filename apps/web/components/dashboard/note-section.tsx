@@ -17,6 +17,7 @@ export function NoteSection({
   onTrash,
   onRestore,
   onDeleteForever,
+  onEditLabels,
 }: {
   label: string;
   loading: boolean;
@@ -30,6 +31,7 @@ export function NoteSection({
   onTrash?: (id: string) => void;
   onRestore?: (id: string) => void;
   onDeleteForever?: (id: string) => void;
+  onEditLabels?: (id: string) => void;
 }) {
   return (
     <section className="mb-9">
@@ -63,6 +65,7 @@ export function NoteSection({
               onTrash={onTrash ? () => onTrash(note.id) : undefined}
               onRestore={onRestore ? () => onRestore(note.id) : undefined}
               onDeleteForever={onDeleteForever ? () => onDeleteForever(note.id) : undefined}
+              onEditLabels={onEditLabels ? () => onEditLabels(note.id) : undefined}
             />
           ))}
         </div>

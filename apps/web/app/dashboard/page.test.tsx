@@ -66,6 +66,14 @@ vi.mock("../../lib/queries/notes", () => ({
   usePermanentDelete: () => ({ mutate: deleteMock }),
   useNote: () => ({ data: { id: "new-1", title: "Untitled", access: "private", isOwner: true } }),
 }));
+const deleteLabelMock = vi.fn();
+vi.mock("../../lib/queries/labels", () => ({
+  labelKeys: { all: ["labels"] },
+  useLabels: () => ({ data: [{ id: "L1", name: "Work", color: "sky", noteCount: 2 }] }),
+  useDeleteLabel: () => ({ mutate: deleteLabelMock }),
+  useCreateLabel: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSetNoteLabels: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
 vi.mock("@tanstack/react-query", async (orig) => ({
   ...(await orig<typeof import("@tanstack/react-query")>()),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
@@ -129,6 +137,20 @@ describe("DashboardPage (spec 12 — single URL-driven view)", () => {
     rerender(<DashboardPage />);
     await waitFor(() => expect(screen.getByText("ArchivedNote")).toBeInTheDocument());
     expect((screen.getByPlaceholderText(/Search notes/i) as HTMLInputElement).value).toBe("");
+  });
+
+  it("sidebar lists labels; clicking one navigates to the label view", async () => {
+    render(<DashboardPage />);
+    expect(screen.getByText("Work")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^Work/ }));
+    expect(pushMock).toHaveBeenCalledWith("/dashboard?label=L1");
+  });
+
+  it("My Notes card Labels… opens the label editor", async () => {
+    render(<DashboardPage />);
+    await userEvent.click(screen.getByRole("button", { name: /note actions/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /labels/i }));
+    expect(await screen.findByLabelText("New label name")).toBeInTheDocument();
   });
 
   it("New Note creates a note and opens the dialog", async () => {

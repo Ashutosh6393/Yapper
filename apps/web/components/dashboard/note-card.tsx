@@ -27,6 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { LabelChips } from "./label-chip";
 
 /** Which lifecycle view the card is rendered in — drives the ⋮ menu and openability. */
 export type NoteCardVariant = "my" | "archive" | "trash" | "shared";
@@ -74,6 +75,8 @@ export function NoteCard({
     </div>
   );
 
+  // Chips render on owned, non-trash cards only (the API sends no labels for shared/trash).
+  const showChips = variant === "my" || variant === "archive";
   const meta = (
     <>
       {note.preview ? (
@@ -81,6 +84,7 @@ export function NoteCard({
           {note.preview}
         </p>
       ) : null}
+      {showChips ? <LabelChips labels={note.labels} /> : null}
       <div className="text-[11px] text-muted-foreground/70">
         {new Date(note.updatedAt).toLocaleString()}
       </div>

@@ -1,6 +1,6 @@
 # 12 · Note Lifecycle & Labels — Implementation
 
-## Status: in-progress (12a, 12b, 12c done)
+## Status: complete (12a–12d done)
 
 ## Completed
 - **12a — DB schema.** Added `archivedAt`/`trashedAt` nullable timestamps + `note_trashed_at_idx`
@@ -39,7 +39,23 @@
   - Tests rewritten first (sidebar/note-card/note-section/notes-hook/dashboard-page) — 41 web
     tests pass, `tsc` + Biome clean.
 
-## Next: 12d — labels UI (query hooks, sidebar Labels section, card chips, Labels… editor).
+- **12d — Web labels UI.**
+  - `lib/queries/labels.ts`: `useLabels` (counts), `useCreateLabel`, `useDeleteLabel`,
+    `useSetNoteLabels` (parse w/ `@yapper/schemas`; invalidate `labelKeys.all` + `noteKeys.all`).
+  - `label-chip.tsx`: palette-key → Tailwind class map (`LABEL_COLORS`, literal strings so Tailwind
+    keeps them; dark-mode safe), `LabelDot`, `LabelChips` (≤3 + `+N`). Rendered on owned non-trash
+    cards before the timestamp.
+  - `label-nav.tsx`: sidebar Labels section (hidden until ≥1) — dot + name + count, click →
+    `?label=<id>`, hover delete → confirm dialog → `onDeleteLabel`. Wired into `sidebar.tsx`.
+  - `label-editor.tsx`: card ⋮ Labels… dialog — checkboxes (pre-checked from the note's labels) +
+    inline create (name + palette swatch) → `PUT` replace on Save. Page wires `onEditLabels`
+    (owned non-trash), deletes-active-label → navigate to My Notes, label heading uses the name.
+  - Tests first: label-chip / label-nav / label-editor + dashboard label cases — 51 web tests pass,
+    `tsc` + Biome clean.
+
+## Spec complete. All four slices landed as separate commits, each goal-state-tested first (TDD).
+Deferred items remain in future-work.md (socket disconnect on trash, label rename/recolor, labeling
+shared notes, leave-shared-note, external cron, bulk actions).
 
 ## In Progress
 
