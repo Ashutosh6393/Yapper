@@ -67,9 +67,17 @@ test("GET /api/notes lists only the caller's notes, metadata only", async () => 
   expect(mine.status).toBe(200);
   const found = mine.body.find((n: { id: string }) => n.id === noteId);
   expect(found).toBeDefined();
-  // List returns metadata only (+access) — never the CRDT blob.
-  expect(Object.keys(found).sort()).toEqual(["access", "id", "preview", "title", "updatedAt"]);
+  // List returns metadata only (+access +labels) — never the CRDT blob.
+  expect(Object.keys(found).sort()).toEqual([
+    "access",
+    "id",
+    "labels",
+    "preview",
+    "title",
+    "updatedAt",
+  ]);
   expect(found.access).toBe("private");
+  expect(found.labels).toEqual([]);
   expect(found.state).toBeUndefined();
 
   // The other user does not see it.
@@ -95,19 +103,26 @@ test("GET /api/notes/:id returns 200 for owner, 403 for non-owner, 404 for missi
   expect(missing.status).toBe(404);
 });
 
-test("DELETE /api/notes/:id removes the note and cascades note_doc; non-owner forbidden", async () => {
+test("DELETE /api/notes/:id is guarded: 409 unless trashed, then cascades note_doc", async () => {
   const created = await request(app).post("/api/notes").set("x-test-user-id", ownerId);
   const noteId = created.body.id;
   // Give it a CRDT doc so we can prove the cascade.
   await db.insert(noteDoc).values({ noteId, state: Buffer.from([1, 2, 3]) });
 
-  // Non-owner cannot delete.
+  // Permanent delete is refused while the note is still active (must be trashed first).
+  const guarded = await request(app).delete(`/api/notes/${noteId}`).set("x-test-user-id", ownerId);
+  expect(guarded.status).toBe(409);
+
+  // Move it to trash.
+  await request(app).post(`/api/notes/${noteId}/trash`).set("x-test-user-id", ownerId);
+
+  // Non-owner still cannot delete.
   const forbidden = await request(app)
     .delete(`/api/notes/${noteId}`)
     .set("x-test-user-id", otherId);
   expect(forbidden.status).toBe(403);
 
-  // Owner deletes successfully.
+  // Owner deletes a trashed note successfully.
   const ok = await request(app).delete(`/api/notes/${noteId}`).set("x-test-user-id", ownerId);
   expect(ok.status).toBe(204);
 

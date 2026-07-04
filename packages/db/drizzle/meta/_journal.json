@@ -15,6 +15,13 @@
       "when": 1782473979817,
       "tag": "0001_mixed_starfox",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783111958403,
+      "tag": "0002_useful_ogun",
+      "breakpoints": true
     }
   ]
 }

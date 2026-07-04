@@ -29,6 +29,7 @@ describe("useNotes", () => {
         preview: "",
         access: "private",
         updatedAt: "2026-06-29T00:00:00.000Z",
+        labels: [],
       },
     ];
     mockFetchJson(rows);

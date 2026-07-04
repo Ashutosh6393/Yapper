@@ -4,6 +4,7 @@ import {
   index,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -124,10 +125,57 @@ export const note = pgTable(
     access: noteAccess("access").notNull().default("private"),
     // null while private; rotated to a fresh token on revoke (slice 07).
     shareToken: text("share_token").unique(),
+    // Lifecycle timestamps (slice 12). State derived: trashedAt set → trash;
+    // else archivedAt set → archive; else active. Restore clears both.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    trashedAt: timestamp("trashed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("note_owner_id_idx").on(table.ownerId)],
+  (table) => [
+    index("note_owner_id_idx").on(table.ownerId),
+    // keeps default (active) list + purge scan cheap
+    index("note_trashed_at_idx").on(table.trashedAt),
+  ],
+);
+
+/**
+ * User-created label (slice 12). Owner-scoped, unique name per owner, fixed-palette color
+ * stored as a plain `text` palette key (validated by Zod at the API boundary, not a DB enum,
+ * so the palette can change without a migration). Attaches only to the owner's own notes.
+ */
+export const label = pgTable(
+  "label",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    color: text("color").notNull().default("slate"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("label_owner_name_unq").on(t.ownerId, t.name),
+    index("label_owner_id_idx").on(t.ownerId),
+  ],
+);
+
+/** Junction between {@link note} and {@link label}; both FKs cascade. */
+export const noteLabel = pgTable(
+  "note_label",
+  {
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => note.id, { onDelete: "cascade" }),
+    labelId: uuid("label_id")
+      .notNull()
+      .references(() => label.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.noteId, t.labelId] }),
+    index("note_label_label_id_idx").on(t.labelId), // filter/count by label
+  ],
 );
 
 /**
@@ -173,6 +221,10 @@ export type NoteDoc = typeof noteDoc.$inferSelect;
 export type NewNoteDoc = typeof noteDoc.$inferInsert;
 export type NoteCollaborator = typeof noteCollaborator.$inferSelect;
 export type NewNoteCollaborator = typeof noteCollaborator.$inferInsert;
+export type Label = typeof label.$inferSelect;
+export type NewLabel = typeof label.$inferInsert;
+export type NoteLabel = typeof noteLabel.$inferSelect;
+export type NewNoteLabel = typeof noteLabel.$inferInsert;
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
 export type Session = typeof session.$inferSelect;

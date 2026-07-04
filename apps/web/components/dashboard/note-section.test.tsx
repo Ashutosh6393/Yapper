@@ -9,6 +9,7 @@ const notes = [
     preview: "",
     access: "private" as const,
     updatedAt: "2026-06-29T00:00:00.000Z",
+    labels: [],
   },
   {
     id: "b",
@@ -16,6 +17,7 @@ const notes = [
     preview: "",
     access: "view" as const,
     updatedAt: "2026-06-29T00:00:00.000Z",
+    labels: [],
   },
 ];
 
@@ -26,9 +28,9 @@ describe("NoteSection", () => {
         label="My Notes"
         loading={false}
         notes={notes}
+        variant="my"
         emptyText="No notes"
         onOpen={vi.fn()}
-        onDelete={vi.fn()}
       />,
     );
     expect(screen.getByText("My Notes")).toBeInTheDocument();
@@ -43,9 +45,9 @@ describe("NoteSection", () => {
         label="Shared with Me"
         loading={false}
         notes={[]}
+        variant="shared"
         emptyText="Nothing shared"
         onOpen={vi.fn()}
-        onDelete={vi.fn()}
       />,
     );
     expect(screen.getByText("Nothing shared")).toBeInTheDocument();

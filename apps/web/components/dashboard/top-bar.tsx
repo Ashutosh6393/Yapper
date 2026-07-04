@@ -51,8 +51,15 @@ export function TopBar({
       </div>
       <div className="flex items-center gap-1">
         <ThemeToggle />
-        <Button type="button" variant="ghost" size="icon" aria-label="Refresh" onClick={onRefresh}>
-          <RefreshCw className="size-5" />
+        <Button
+          type="button"
+          className="cursor-pointer"
+          variant="link"
+          size="icon"
+          aria-label="Refresh"
+          onClick={onRefresh}
+        >
+          <RefreshCw className="size-4  text-zinc-500" />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

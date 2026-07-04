@@ -2,24 +2,36 @@
 
 import type { NoteSummary } from "@yapper/schemas";
 import { Skeleton } from "@/components/ui/skeleton";
-import { NoteCard } from "./note-card";
+import { NoteCard, type NoteCardVariant } from "./note-card";
 
 export function NoteSection({
   label,
   loading,
   notes,
   ownerNames,
+  variant,
   emptyText,
   onOpen,
-  onDelete,
+  onArchive,
+  onUnarchive,
+  onTrash,
+  onRestore,
+  onDeleteForever,
+  onEditLabels,
 }: {
   label: string;
   loading: boolean;
   notes: NoteSummary[];
   ownerNames?: Record<string, string>;
+  variant: NoteCardVariant;
   emptyText: string;
   onOpen: (id: string) => void;
-  onDelete: (id: string) => void;
+  onArchive?: (id: string) => void;
+  onUnarchive?: (id: string) => void;
+  onTrash?: (id: string) => void;
+  onRestore?: (id: string) => void;
+  onDeleteForever?: (id: string) => void;
+  onEditLabels?: (id: string) => void;
 }) {
   return (
     <section className="mb-9">
@@ -45,9 +57,15 @@ export function NoteSection({
             <NoteCard
               key={note.id}
               note={note}
+              variant={variant}
               ownerName={ownerNames?.[note.id]}
               onOpen={() => onOpen(note.id)}
-              onDelete={() => onDelete(note.id)}
+              onArchive={onArchive ? () => onArchive(note.id) : undefined}
+              onUnarchive={onUnarchive ? () => onUnarchive(note.id) : undefined}
+              onTrash={onTrash ? () => onTrash(note.id) : undefined}
+              onRestore={onRestore ? () => onRestore(note.id) : undefined}
+              onDeleteForever={onDeleteForever ? () => onDeleteForever(note.id) : undefined}
+              onEditLabels={onEditLabels ? () => onEditLabels(note.id) : undefined}
             />
           ))}
         </div>

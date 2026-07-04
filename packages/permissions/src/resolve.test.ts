@@ -34,7 +34,9 @@ function deps(
   const d = {
     loadNote: async () => {
       loadCalls++;
-      return over.note === undefined ? { ownerId: OWNER, access: "edit" as const } : over.note;
+      return over.note === undefined
+        ? { ownerId: OWNER, access: "edit" as const, trashedAt: null }
+        : over.note;
     },
     isActiveCollaborator: async () => over.isCollab ?? false,
     cache: over.cache,
@@ -45,7 +47,11 @@ function deps(
 
 test("resolves and caches the derived permission on a cache miss", async () => {
   const cache = fakeCache();
-  const d = deps({ note: { ownerId: OWNER, access: "view" }, isCollab: true, cache });
+  const d = deps({
+    note: { ownerId: OWNER, access: "view", trashedAt: null },
+    isCollab: true,
+    cache,
+  });
 
   const perm = await resolvePermission(NOTE, COLLAB, d);
   expect(perm).toBe("view");
@@ -71,7 +77,7 @@ test("works without a cache (cache is optional)", async () => {
   const perm = await resolvePermission(
     NOTE,
     COLLAB,
-    deps({ note: { ownerId: OWNER, access: "edit" }, isCollab: true }),
+    deps({ note: { ownerId: OWNER, access: "edit", trashedAt: null }, isCollab: true }),
   );
   expect(perm).toBe("edit");
 });

@@ -17,6 +17,22 @@ describe("Sidebar", () => {
     expect(onNewNote).toHaveBeenCalledOnce();
   });
 
+  it("marks the active view with aria-current and navigates on click", async () => {
+    const onSelectView = vi.fn();
+    render(<Sidebar activeView="archive" onSelectView={onSelectView} onNewNote={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Archive" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "My Notes" })).not.toHaveAttribute("aria-current");
+
+    await userEvent.click(screen.getByRole("button", { name: "Trash" }));
+    expect(onSelectView).toHaveBeenCalledWith("trash");
+  });
+
+  it("highlights no tab when a label view is active", () => {
+    render(<Sidebar activeView="my" labelActive onSelectView={vi.fn()} onNewNote={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "My Notes" })).not.toHaveAttribute("aria-current");
+  });
+
   it("calls onClose when the mobile backdrop is tapped", async () => {
     const onClose = vi.fn();
     render(<Sidebar onNewNote={vi.fn()} open onClose={onClose} />);

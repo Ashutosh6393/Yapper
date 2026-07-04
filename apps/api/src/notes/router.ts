@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { db, note, noteCollaborator, user } from "@yapper/db";
+import { db, label, note, noteCollaborator, noteLabel, user } from "@yapper/db";
 import { bustNotePermissions, revokeChannel, roleChangeChannel } from "@yapper/permissions";
-import { shareNoteBodySchema } from "@yapper/schemas";
-import { and, desc, eq, ne } from "drizzle-orm";
-import { type Request, type RequestHandler, type Response, Router } from "express";
+import { noteListQuerySchema, setNoteLabelsBodySchema, shareNoteBodySchema } from "@yapper/schemas";
+import { and, desc, eq, exists, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { type RequestHandler, type Response, Router } from "express";
+import { authed } from "../authed";
 import { permCache, resolvePerm } from "../permissions";
 import { redisPublisher } from "../redis";
 
@@ -12,29 +13,37 @@ function ownsNote(row: { ownerId: string }, userId: string): boolean {
   return row.ownerId === userId;
 }
 
+/**
+ * Load + owner-gate a note for a lifecycle/label mutation. Writes the 404/403 response and returns
+ * `null` when the caller must stop; otherwise returns the note's `ownerId` + `trashedAt`.
+ */
+async function requireOwnedNote(
+  id: string,
+  userId: string,
+  res: Response,
+): Promise<{ ownerId: string; trashedAt: Date | null } | null> {
+  const [row] = await db
+    .select({ ownerId: note.ownerId, trashedAt: note.trashedAt })
+    .from(note)
+    .where(eq(note.id, id))
+    .limit(1);
+  if (!row) {
+    res.status(404).json({ error: "Not found" });
+    return null;
+  }
+  if (!ownsNote(row, userId)) {
+    res.status(403).json({ error: "Forbidden" });
+    return null;
+  }
+  return row;
+}
+
 /** Where the share link points; the web app serves `/share/:token`. */
 const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
 
 /** A cryptographically-random, URL-safe bearer token for a capability link (still gated by login). */
 function mintShareToken(): string {
   return randomBytes(24).toString("base64url");
-}
-
-/**
- * Wraps a handler so `req.userId` (guaranteed by {@link requireAuth}) is passed in as a
- * non-nullable `string`, and async rejections are forwarded to Express' error handler.
- */
-function authed(
-  handler: (req: Request, res: Response, userId: string) => Promise<void>,
-): RequestHandler {
-  return (req, res, next) => {
-    const userId = req.userId;
-    if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
-    handler(req, res, userId).catch(next);
-  };
 }
 
 /**
@@ -59,10 +68,41 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
     }),
   );
 
-  // GET /api/notes — list the caller's owned notes, newest first (metadata only).
+  // GET /api/notes?filter=active|archived|trashed&label=<id> — list the caller's owned notes for
+  // one lifecycle view, newest first (metadata only), each with its embedded labels[]. Default
+  // filter is `active` (archived/trashed excluded). A `label` param implies the active view and
+  // filters to notes carrying that label. Trash-view rows carry `labels: []` (goal #11).
   router.get(
     "/",
-    authed(async (_req, res, userId) => {
+    authed(async (req, res, userId) => {
+      const parsed = noteListQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({ error: "Invalid query", issues: parsed.error.issues });
+        return;
+      }
+      const { label: labelId } = parsed.data;
+      // A label filter only ever applies to active notes.
+      const filter = labelId ? "active" : parsed.data.filter;
+
+      const conds = [eq(note.ownerId, userId)];
+      if (filter === "active") {
+        conds.push(isNull(note.archivedAt), isNull(note.trashedAt));
+      } else if (filter === "archived") {
+        conds.push(isNotNull(note.archivedAt), isNull(note.trashedAt));
+      } else {
+        conds.push(isNotNull(note.trashedAt));
+      }
+      if (labelId) {
+        conds.push(
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(noteLabel)
+              .where(and(eq(noteLabel.noteId, note.id), eq(noteLabel.labelId, labelId))),
+          ),
+        );
+      }
+
       const rows = await db
         .select({
           id: note.id,
@@ -72,9 +112,37 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
           updatedAt: note.updatedAt,
         })
         .from(note)
-        .where(eq(note.ownerId, userId))
+        .where(and(...conds))
         .orderBy(desc(note.updatedAt));
-      res.json(rows);
+
+      // Embed labels[] with one grouped query over note_label ⋈ label for the page's ids (no N+1).
+      // Trash view shows no chips, so skip the query and return empty arrays.
+      const labelsByNote = new Map<string, { id: string; name: string; color: string }[]>();
+      if (filter !== "trashed" && rows.length > 0) {
+        const links = await db
+          .select({
+            noteId: noteLabel.noteId,
+            id: label.id,
+            name: label.name,
+            color: label.color,
+          })
+          .from(noteLabel)
+          .innerJoin(label, eq(noteLabel.labelId, label.id))
+          .where(
+            inArray(
+              noteLabel.noteId,
+              rows.map((r) => r.id),
+            ),
+          )
+          .orderBy(label.name);
+        for (const link of links) {
+          const list = labelsByNote.get(link.noteId) ?? [];
+          list.push({ id: link.id, name: link.name, color: link.color });
+          labelsByNote.set(link.noteId, list);
+        }
+      }
+
+      res.json(rows.map((r) => ({ ...r, labels: labelsByNote.get(r.id) ?? [] })));
     }),
   );
 
@@ -100,6 +168,8 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
             eq(noteCollaborator.userId, userId),
             eq(noteCollaborator.status, "active"),
             ne(note.access, "private"),
+            // A trashed note disappears from collaborators' "Shared with me" (ADR-005).
+            isNull(note.trashedAt),
           ),
         )
         .orderBy(desc(note.updatedAt));
@@ -227,7 +297,109 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
     }),
   );
 
-  // DELETE /api/notes/:id — owner-only. Cascades to note_doc + note_collaborator via FKs.
+  // POST /api/notes/:id/archive — owner only; set archived_at = now(). No collaborator/socket
+  // impact (archive is purely the owner's organization; ADR-005).
+  router.post(
+    "/:id/archive",
+    authed(async (req, res, userId) => {
+      const { id } = req.params;
+      if (!id) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      if (!(await requireOwnedNote(id, userId, res))) return;
+      await db.update(note).set({ archivedAt: new Date() }).where(eq(note.id, id));
+      res.status(204).end();
+    }),
+  );
+
+  // POST /api/notes/:id/unarchive — owner only; clear archived_at (back to active).
+  router.post(
+    "/:id/unarchive",
+    authed(async (req, res, userId) => {
+      const { id } = req.params;
+      if (!id) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      if (!(await requireOwnedNote(id, userId, res))) return;
+      await db.update(note).set({ archivedAt: null }).where(eq(note.id, id));
+      res.status(204).end();
+    }),
+  );
+
+  // POST /api/notes/:id/trash — owner only; soft-delete (set trashed_at = now()). Busts the note's
+  // cached permissions so non-owners resolve to `none` on their next read/reconnect. No revoke
+  // publish — kicking already-connected collaborators is future work (ADR-005).
+  router.post(
+    "/:id/trash",
+    authed(async (req, res, userId) => {
+      const { id } = req.params;
+      if (!id) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      if (!(await requireOwnedNote(id, userId, res))) return;
+      await db.update(note).set({ trashedAt: new Date() }).where(eq(note.id, id));
+      await bustNotePermissions(permCache, id);
+      res.status(204).end();
+    }),
+  );
+
+  // POST /api/notes/:id/restore — owner only; clear both timestamps (back to active). Sharing
+  // resumes unchanged (token not rotated); busts perms so collaborators regain access.
+  router.post(
+    "/:id/restore",
+    authed(async (req, res, userId) => {
+      const { id } = req.params;
+      if (!id) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      if (!(await requireOwnedNote(id, userId, res))) return;
+      await db.update(note).set({ trashedAt: null, archivedAt: null }).where(eq(note.id, id));
+      await bustNotePermissions(permCache, id);
+      res.status(204).end();
+    }),
+  );
+
+  // PUT /api/notes/:id/labels — owner only; replace the note's whole label set. Only the owner's
+  // own labels are attached (client-supplied ids are filtered), so you can't attach someone else's.
+  router.put(
+    "/:id/labels",
+    authed(async (req, res, userId) => {
+      const { id } = req.params;
+      if (!id) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      const parsed = setNoteLabelsBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "Invalid labels", issues: parsed.error.issues });
+        return;
+      }
+      if (!(await requireOwnedNote(id, userId, res))) return;
+
+      const { labelIds } = parsed.data;
+      await db.transaction(async (tx) => {
+        await tx.delete(noteLabel).where(eq(noteLabel.noteId, id));
+        if (labelIds.length > 0) {
+          const owned = await tx
+            .select({ id: label.id })
+            .from(label)
+            .where(and(eq(label.ownerId, userId), inArray(label.id, labelIds)));
+          if (owned.length > 0) {
+            await tx.insert(noteLabel).values(owned.map((l) => ({ noteId: id, labelId: l.id })));
+          }
+        }
+      });
+      res.status(204).end();
+    }),
+  );
+
+  // DELETE /api/notes/:id — owner-only PERMANENT delete. Reachable only from Trash: 409 unless the
+  // note is already trashed (guards against nuking an active note). Cascades to note_doc /
+  // note_collaborator / note_label via FKs.
   router.delete(
     "/:id",
     authed(async (req, res, userId) => {
@@ -236,17 +408,10 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         res.status(404).json({ error: "Not found" });
         return;
       }
-      const [row] = await db
-        .select({ ownerId: note.ownerId })
-        .from(note)
-        .where(eq(note.id, id))
-        .limit(1);
-      if (!row) {
-        res.status(404).json({ error: "Not found" });
-        return;
-      }
-      if (!ownsNote(row, userId)) {
-        res.status(403).json({ error: "Forbidden" });
+      const row = await requireOwnedNote(id, userId, res);
+      if (!row) return;
+      if (row.trashedAt === null) {
+        res.status(409).json({ error: "Note must be trashed before permanent deletion" });
         return;
       }
       await db.delete(note).where(eq(note.id, id));
