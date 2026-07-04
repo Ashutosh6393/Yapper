@@ -43,4 +43,19 @@ describe("TopBar", () => {
     await userEvent.click(screen.getByRole("button", { name: /open menu/i }));
     expect(onMenuClick).toHaveBeenCalledOnce();
   });
+
+  it("spins the refresh icon only while refreshing", () => {
+    const { rerender } = render(<TopBar {...base} refreshing={false} />);
+    const idle = screen.getByRole("button", { name: /refresh notes/i }).querySelector("svg");
+    expect(idle?.classList.contains("animate-spin")).toBe(false);
+
+    rerender(<TopBar {...base} refreshing={true} />);
+    const spinning = screen.getByRole("button", { name: /refresh notes/i }).querySelector("svg");
+    expect(spinning?.classList.contains("animate-spin")).toBe(true);
+  });
+
+  it("disables the refresh button while refreshing", () => {
+    render(<TopBar {...base} refreshing={true} />);
+    expect(screen.getByRole("button", { name: /refresh notes/i })).toBeDisabled();
+  });
 });

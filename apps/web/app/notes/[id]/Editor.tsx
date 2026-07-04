@@ -7,12 +7,24 @@ import { buildExtensions } from "@yapper/editor";
 import { type AwarenessUser, socketServerMessageSchema } from "@yapper/schemas";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/components/ui/sonner";
 import { getAuthToken } from "../../../lib/auth-token";
 import { type ConnStatus, useEditorStore } from "../../../lib/stores/editor";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "ws://localhost:1234";
 
-export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivate?: () => void }) {
+export function Editor({
+  noteId,
+  assumeEditable = false,
+  onMadePrivate,
+}: {
+  noteId: string;
+  /** For a just-created owned note: assume `edit` and be typable immediately instead of waiting for
+   * the socket `identity` message. The socket stays authoritative — a `view` identity or an auth
+   * failure downgrades the surface to read-only (goal #11). */
+  assumeEditable?: boolean;
+  onMadePrivate?: () => void;
+}) {
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
   const setStatus = useEditorStore((s) => s.setStatus);
   const setIdentity = useEditorStore((s) => s.setIdentity);
@@ -23,6 +35,8 @@ export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivat
   useEffect(() => {
     // Fresh collab state for this note; the store is shared across mounts.
     reset();
+    // Editable-first: seed `edit` optimistically so the creator can type before the socket confirms.
+    if (assumeEditable) setPermission("edit");
     // Track whether we intentionally disconnected due to a server kick, so `onDisconnect`
     // does not override the `made_private` status with "disconnected".
     let madePrivate = false;
@@ -35,7 +49,15 @@ export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivat
       onDisconnect: () => {
         if (!madePrivate) setStatus("disconnected");
       },
-      onAuthenticationFailed: () => setStatus("denied"),
+      onAuthenticationFailed: () => {
+        setStatus("denied");
+        // Trigger B downgrade: `none` throws in onAuthenticate and never sends an `identity`
+        // message, so an optimistic edit surface must be revoked here.
+        if (assumeEditable) {
+          setPermission("view");
+          toast.error("You don't have edit access to this note");
+        }
+      },
       onStateless: ({ payload }) => {
         // Server→client messages share their shape with the socket via @yapper/schemas.
         const parsed = socketServerMessageSchema.safeParse(JSON.parse(payload));
@@ -54,7 +76,16 @@ export function Editor({ noteId, onMadePrivate }: { noteId: string; onMadePrivat
     });
     setProvider(p);
     return () => p.destroy();
-  }, [noteId, onMadePrivate, reset, setStatus, setIdentity, setPermission, markPrivate]);
+  }, [
+    noteId,
+    assumeEditable,
+    onMadePrivate,
+    reset,
+    setStatus,
+    setIdentity,
+    setPermission,
+    markPrivate,
+  ]);
 
   if (!provider) return null;
   return <BoundEditor key={noteId} provider={provider} />;

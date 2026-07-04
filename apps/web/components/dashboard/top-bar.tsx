@@ -12,11 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function TopBar({
   search,
   onSearch,
   onRefresh,
+  refreshing = false,
   email,
   onSignOut,
   onMenuClick,
@@ -24,6 +26,8 @@ export function TopBar({
   search: string;
   onSearch: (v: string) => void;
   onRefresh: () => void;
+  /** True while a manual refresh is in flight — spins the icon and disables the button. */
+  refreshing?: boolean;
   email: string;
   onSignOut: () => void;
   onMenuClick?: () => void;
@@ -51,16 +55,24 @@ export function TopBar({
       </div>
       <div className="flex items-center gap-1">
         <ThemeToggle />
-        <Button
-          type="button"
-          className="cursor-pointer"
-          variant="link"
-          size="icon"
-          aria-label="Refresh"
-          onClick={onRefresh}
-        >
-          <RefreshCw className="size-4  text-zinc-500" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              className="cursor-pointer"
+              variant="link"
+              size="icon"
+              aria-label="Refresh notes"
+              disabled={refreshing}
+              onClick={onRefresh}
+            >
+              <RefreshCw
+                className={`size-4 text-zinc-500 ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`}
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Refresh notes</TooltipContent>
+        </Tooltip>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
