@@ -39,6 +39,23 @@ describe("NoteSection", () => {
     expect(screen.getByText("Beta")).toBeInTheDocument();
   });
 
+  it("lays notes out as a CSS-columns masonry with a break-avoid wrapper per note", () => {
+    const { container } = render(
+      <NoteSection
+        label="My Notes"
+        loading={false}
+        notes={notes}
+        variant="my"
+        emptyText="No notes"
+        onOpen={vi.fn()}
+      />,
+    );
+    const grid = container.querySelector('[class*="columns-"]');
+    expect(grid).not.toBeNull();
+    expect(grid?.className).not.toContain("grid-cols-");
+    expect(container.querySelectorAll('[class*="break-inside-avoid"]').length).toBe(2);
+  });
+
   it("renders the empty text when there are no notes", () => {
     render(
       <NoteSection

@@ -11,6 +11,7 @@ import { NoteSection } from "@/components/dashboard/note-section";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { TopBar } from "@/components/dashboard/top-bar";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/sonner";
 import {
   type DashboardView,
   filterForView,
@@ -73,6 +74,24 @@ export default function DashboardPage() {
   const [dialogNoteId, setDialogNoteId] = useState<string | null>(null);
   const [labelsNoteId, setLabelsNoteId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  // Instant-create state: `creating` opens the dialog shell before the POST resolves; `createdId`
+  // marks the note we just made so its editor opens editable-first (assumeEditable).
+  const [creating, setCreating] = useState(false);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+
+  // Manual refresh: refetch every notes slice, showing spin + a settle toast (goal #3).
+  async function refreshNotes() {
+    setRefreshing(true);
+    try {
+      await queryClient.invalidateQueries({ queryKey: noteKeys.all });
+      toast.success("Notes up to date");
+    } catch {
+      toast.error("Couldn't refresh notes");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     if (!isPending && !session) router.replace("/login");
@@ -110,14 +129,34 @@ export default function DashboardPage() {
   }
   if (!session) return null;
 
+  // Instant create (goal #5): open the editor shell immediately, create in parallel, seed the
+  // metadata cache from the response (no GET), then bind the real editor — editable at once.
   async function createAndOpen() {
     setSidebarOpen(false);
+    setCreating(true);
     try {
       const note = await createNote.mutateAsync();
+      queryClient.setQueryData(noteKeys.detail(note.id), {
+        id: note.id,
+        title: note.title,
+        preview: "",
+        access: note.access,
+        createdAt: note.updatedAt,
+        updatedAt: note.updatedAt,
+        isOwner: true,
+      });
+      setCreatedId(note.id);
       setDialogNoteId(note.id);
     } catch {
-      // mutation state re-enables the trigger; nothing else to surface here
+      toast.error("Couldn't create note");
+    } finally {
+      setCreating(false);
     }
+  }
+
+  function closeDialog() {
+    setDialogNoteId(null);
+    setCreatedId(null);
   }
 
   function navigate(next: DashboardView) {
@@ -163,7 +202,8 @@ export default function DashboardPage() {
         <TopBar
           search={search}
           onSearch={setSearch}
-          onRefresh={() => queryClient.invalidateQueries({ queryKey: noteKeys.all })}
+          onRefresh={refreshNotes}
+          refreshing={refreshing}
           email={session.user.email}
           onMenuClick={() => setSidebarOpen(true)}
           onSignOut={async () => {
@@ -210,7 +250,12 @@ export default function DashboardPage() {
         </main>
       </div>
 
-      <NoteDialog noteId={dialogNoteId} onClose={() => setDialogNoteId(null)} />
+      <NoteDialog
+        noteId={dialogNoteId}
+        creating={creating}
+        assumeEditable={dialogNoteId !== null && dialogNoteId === createdId}
+        onClose={closeDialog}
+      />
       {labelsNoteId ? (
         <LabelEditor
           key={labelsNoteId}

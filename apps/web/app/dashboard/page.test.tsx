@@ -51,7 +51,7 @@ const restoreMock = vi.fn();
 const deleteMock = vi.fn();
 
 vi.mock("../../lib/queries/notes", () => ({
-  noteKeys: { all: ["notes"] },
+  noteKeys: { all: ["notes"], detail: (id: string) => ["notes", "detail", id] },
   useNotes: (filter: string) => ({
     isPending: false,
     data:
@@ -76,9 +76,11 @@ vi.mock("../../lib/queries/labels", () => ({
 }));
 vi.mock("@tanstack/react-query", async (orig) => ({
   ...(await orig<typeof import("@tanstack/react-query")>()),
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn(), setQueryData: vi.fn() }),
 }));
+vi.mock("@/components/ui/sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import { toast } from "@/components/ui/sonner";
 import DashboardPage from "./page";
 
 describe("DashboardPage (spec 12 — single URL-driven view)", () => {
@@ -158,5 +160,33 @@ describe("DashboardPage (spec 12 — single URL-driven view)", () => {
     await userEvent.click(screen.getByRole("button", { name: /New Note/i }));
     await waitFor(() => expect(createMock).toHaveBeenCalledOnce());
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("opens the editor instantly — the dialog shell shows before the create request resolves", async () => {
+    let release!: () => void;
+    createMock.mockImplementationOnce(
+      () =>
+        new Promise((res) => {
+          release = () => res({ id: "new-1", title: "Untitled", access: "private", updatedAt: "" });
+        }),
+    );
+    render(<DashboardPage />);
+    await userEvent.click(screen.getByRole("button", { name: /New Note/i }));
+
+    // Dialog + "Creating note…" shell are visible while the POST is still in flight.
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText(/Creating note/i)).toBeInTheDocument();
+
+    // Once the note exists, the editor binds.
+    release();
+    expect(await screen.findByText("editor")).toBeInTheDocument();
+  });
+
+  it("closes the shell and error-toasts when create fails", async () => {
+    createMock.mockImplementationOnce(() => Promise.reject(new Error("nope")));
+    render(<DashboardPage />);
+    await userEvent.click(screen.getByRole("button", { name: /New Note/i }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

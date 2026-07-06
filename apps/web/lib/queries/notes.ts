@@ -8,6 +8,7 @@ import {
   shareInfoSchema,
 } from "@yapper/schemas";
 import { apiFetch } from "../http";
+import { useOptimisticNoteListMutation } from "./optimistic";
 
 /** Query-key factory so mutations can invalidate the right slices of the notes cache. */
 export const noteKeys = {
@@ -61,41 +62,55 @@ export function useCreateNote() {
   });
 }
 
-/** Shared shape for the note lifecycle mutations: hit a per-id endpoint, then invalidate every
- * notes list/shared slice so whichever view is active refetches. */
-function useNoteLifecycleMutation(path: (id: string) => string, method: "POST" | "DELETE") {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      await apiFetch(path(id), { method });
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.all }),
+/** Unarchive an owned note (Archive → My Notes). Optimistic (drops it from the Archive view). */
+export function useUnarchiveNote() {
+  return useOptimisticNoteListMutation({
+    mutationFn: (id) => apiFetch(`/api/notes/${id}/unarchive`, { method: "POST" }),
+    errorMessage: "Couldn't unarchive note",
   });
 }
 
-/** Archive an owned note (My Notes → Archive). Reversible; no collaborator impact. */
+/** Archive an owned note (My Notes → Archive). Reversible; no collaborator impact. Success toast
+ * carries Undo → unarchive (ADR-004: Undo fires the inverse mutation, never a cache re-add). */
 export function useArchiveNote() {
-  return useNoteLifecycleMutation((id) => `/api/notes/${id}/archive`, "POST");
+  const unarchive = useUnarchiveNote();
+  return useOptimisticNoteListMutation({
+    mutationFn: (id) => apiFetch(`/api/notes/${id}/archive`, { method: "POST" }),
+    errorMessage: "Couldn't archive note",
+    successToast: (id) => ({
+      message: "Note archived",
+      action: { label: "Undo", onClick: () => unarchive.mutate(id) },
+    }),
+  });
 }
 
-/** Unarchive an owned note (Archive → My Notes). */
-export function useUnarchiveNote() {
-  return useNoteLifecycleMutation((id) => `/api/notes/${id}/unarchive`, "POST");
-}
-
-/** Move an owned note to Trash (soft delete). Reversible via restore. */
-export function useTrashNote() {
-  return useNoteLifecycleMutation((id) => `/api/notes/${id}/trash`, "POST");
-}
-
-/** Restore a trashed note back to active. */
+/** Restore a trashed note back to active. Optimistic (drops it from the Trash view). */
 export function useRestoreNote() {
-  return useNoteLifecycleMutation((id) => `/api/notes/${id}/restore`, "POST");
+  return useOptimisticNoteListMutation({
+    mutationFn: (id) => apiFetch(`/api/notes/${id}/restore`, { method: "POST" }),
+    errorMessage: "Couldn't restore note",
+  });
+}
+
+/** Move an owned note to Trash (soft delete). Reversible; success toast carries Undo → restore. */
+export function useTrashNote() {
+  const restore = useRestoreNote();
+  return useOptimisticNoteListMutation({
+    mutationFn: (id) => apiFetch(`/api/notes/${id}/trash`, { method: "POST" }),
+    errorMessage: "Couldn't move note to Trash",
+    successToast: (id) => ({
+      message: "Moved to Trash",
+      action: { label: "Undo", onClick: () => restore.mutate(id) },
+    }),
+  });
 }
 
 /** Permanently delete a trashed note (irreversible; server 409s unless already trashed). */
 export function usePermanentDelete() {
-  return useNoteLifecycleMutation((id) => `/api/notes/${id}`, "DELETE");
+  return useOptimisticNoteListMutation({
+    mutationFn: (id) => apiFetch(`/api/notes/${id}`, { method: "DELETE" }),
+    errorMessage: "Couldn't delete note",
+  });
 }
 
 /** Enable/update sharing for a note; invalidates that note's metadata so `access` refreshes. */
