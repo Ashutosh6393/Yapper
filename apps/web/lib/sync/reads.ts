@@ -1,5 +1,7 @@
+import type { Label } from "@yapper/schemas";
 import { useLiveQuery } from "dexie-react-hooks";
 import type { NoteFilter } from "../dashboard-view";
+import { useLabels } from "../queries/labels";
 import { useNote, useNotes } from "../queries/notes";
 import { db } from "./db";
 import { isSyncEngineEnabled } from "./flag";
@@ -37,6 +39,20 @@ export function useLocalNote(id: string) {
 /** The sidebar label list. */
 export function useLocalLabels() {
   return useLiveQuery(() => db.labels.toArray(), []);
+}
+
+/**
+ * Owner's label list, flag-gated on the stable flag: `db.labels` when the sync engine is on (so
+ * optimistic create/rename/delete show at once), today's TanStack Query `useLabels` otherwise. Returns
+ * `Label[] | undefined` (undefined = loading), the shape the sidebar/label editor already read.
+ */
+export function useLabelList(): Label[] | undefined {
+  if (isSyncEngineEnabled()) {
+    // biome-ignore lint/correctness/useHookAtTopLevel: flag is constant per process (see useNoteList).
+    return useLocalLabels();
+  }
+  // biome-ignore lint/correctness/useHookAtTopLevel: stable-flag branch (see useNoteList).
+  return useLabels().data;
 }
 
 /**

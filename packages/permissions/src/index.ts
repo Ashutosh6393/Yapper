@@ -11,6 +11,7 @@ export {
 export { effectivePermission, type Permission, type PermissionNote } from "./derive";
 export {
   buildRedisPublisher,
+  pokeUserChannel,
   type RedisPublisher,
   revokeChannel,
   roleChangeChannel,

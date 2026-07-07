@@ -167,6 +167,17 @@ describe("pushResponseSchema", () => {
     expect(pushResponseSchema.parse(res)).toEqual(res);
   });
 
+  it("accepts the four permanent reject reasons (incl. not_found)", () => {
+    for (const reason of ["forbidden", "invalid", "conflict", "not_found"] as const) {
+      expect(
+        pushResponseSchema.safeParse({
+          lastMutationID: 1,
+          verdicts: [{ seq: 1, status: "rejected", reason }],
+        }).success,
+      ).toBe(true);
+    }
+  });
+
   it("rejects an unknown reject reason", () => {
     expect(
       pushResponseSchema.safeParse({

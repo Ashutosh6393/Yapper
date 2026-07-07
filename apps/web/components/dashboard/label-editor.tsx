@@ -6,7 +6,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useCreateLabel, useLabels, useSetNoteLabels } from "@/lib/queries/labels";
+import { useCreateLabel, useSetNoteLabels } from "@/lib/queries/labels";
+import * as engineActions from "@/lib/sync/actions";
+import { isSyncEngineEnabled } from "@/lib/sync/flag";
+import { useLabelList } from "@/lib/sync/reads";
 import { LABEL_COLOR_KEYS, LabelDot } from "./label-chip";
 
 /** The card ⋮ "Labels…" editor: check the labels attached to a note, inline-create new ones, and
@@ -22,7 +25,8 @@ export function LabelEditor({
   open: boolean;
   onClose: () => void;
 }) {
-  const labelsQuery = useLabels();
+  const syncOn = isSyncEngineEnabled();
+  const labels = useLabelList() ?? [];
   const createLabel = useCreateLabel();
   const setNoteLabels = useSetNoteLabels();
 
@@ -41,6 +45,12 @@ export function LabelEditor({
   async function handleCreate() {
     const trimmed = name.trim();
     if (!trimmed) return;
+    if (syncOn) {
+      const id = engineActions.createLabel(trimmed, color);
+      setSelected((prev) => new Set(prev).add(id));
+      setName("");
+      return;
+    }
     try {
       const created = await createLabel.mutateAsync({ name: trimmed, color });
       setSelected((prev) => new Set(prev).add(created.id));
@@ -51,6 +61,12 @@ export function LabelEditor({
   }
 
   async function handleSave() {
+    if (syncOn) {
+      // Decompose the new set vs the attached set into per-link apply/remove mutations.
+      engineActions.setNoteLabels(noteId, attachedIds, [...selected]);
+      onClose();
+      return;
+    }
     try {
       await setNoteLabels.mutateAsync({ noteId, labelIds: [...selected] });
       onClose();
@@ -67,7 +83,7 @@ export function LabelEditor({
         </DialogHeader>
 
         <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto">
-          {(labelsQuery.data ?? []).map((label) => (
+          {labels.map((label) => (
             <label
               key={label.id}
               className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-white/[0.04]"
@@ -82,7 +98,7 @@ export function LabelEditor({
               <span className="truncate">{label.name}</span>
             </label>
           ))}
-          {labelsQuery.data?.length === 0 ? (
+          {labels.length === 0 ? (
             <p className="px-2 py-1 text-sm text-muted-foreground">
               No labels yet — create one below.
             </p>
