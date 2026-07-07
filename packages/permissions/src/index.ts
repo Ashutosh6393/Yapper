@@ -10,13 +10,16 @@ export {
 } from "./cache";
 export { effectivePermission, type Permission, type PermissionNote } from "./derive";
 export {
+  buildPokeSubscriber,
   buildRedisPublisher,
+  type PokeSubscriber,
   pokeUserChannel,
+  publishPokes,
   type RedisPublisher,
   revokeChannel,
   roleChangeChannel,
 } from "./events";
-export { isActiveCollaborator, loadNote } from "./loaders";
+export { isActiveCollaborator, loadNote, loadNoteAudience } from "./loaders";
 export {
   bustNotePermissions,
   bustUserPermission,

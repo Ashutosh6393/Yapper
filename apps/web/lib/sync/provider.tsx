@@ -6,6 +6,7 @@ import { isSyncEngineEnabled } from "./flag";
 // Registers the 14 client-mutator bodies into rebuild()'s fold (side effect) — must load before any
 // rebuild that folds a leftover queue.
 import "./mutators";
+import { useSyncPoke } from "./poke";
 import { pull } from "./pull";
 import { schedulePush } from "./push";
 
@@ -23,6 +24,10 @@ export function SyncEngineProvider({ children }: { children: ReactNode }) {
 }
 
 function SyncEngineBootstrap({ children }: { children: ReactNode }) {
+  // Open the poke stream + focus/visibility/online backstops (spec 17): each schedules a reconcile
+  // pull. Only reached on the flag-on path (this component renders only when the engine is enabled).
+  useSyncPoke();
+
   useEffect(() => {
     let cancelled = false;
     // One-shot initial fill: mint/load the client-group id, pull the metadata delta into db.base
