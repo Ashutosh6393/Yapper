@@ -19,6 +19,14 @@ export function mintShareToken(): string {
   return randomBytes(24).toString("base64url");
 }
 
+/**
+ * Set a note's title. No REST endpoint today (title is content-derived — spec 20); the engine's
+ * `renameNote` mutator is an explicit metadata override (spec 19, decisions ADR-005).
+ */
+export async function renameNote(dbx: Executor, id: string, title: string): Promise<void> {
+  await dbx.update(note).set({ title, updatedAt: new Date() }).where(eq(note.id, id));
+}
+
 /** Set `archived_at = now()` (My Notes → Archive). */
 export async function archiveNote(dbx: Executor, id: string): Promise<void> {
   await dbx.update(note).set({ archivedAt: new Date() }).where(eq(note.id, id));

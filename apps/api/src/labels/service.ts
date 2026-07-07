@@ -25,6 +25,11 @@ export async function insertLabel(
   return created;
 }
 
+/** Rename a label. No REST endpoint today; the engine's `renameLabel` mutator is a new owner-gated write. */
+export async function renameLabelById(dbx: Executor, id: string, name: string): Promise<void> {
+  await dbx.update(label).set({ name }).where(eq(label.id, id));
+}
+
 /** Delete a label (FK cascade to note_label — notes keep existing, lose the label). */
 export async function deleteLabelById(dbx: Executor, id: string): Promise<void> {
   await dbx.delete(label).where(eq(label.id, id));

@@ -99,11 +99,15 @@ export const pushRequestSchema = z.object({
 });
 export type PushRequest = z.infer<typeof pushRequestSchema>;
 
-/** A per-mutation verdict (ADR-0009). `reason` is present only on a permanent reject. */
+/**
+ * A per-mutation verdict (ADR-0009). `reason` is present only on a permanent reject — one of the four
+ * deny-by-default reasons a server mutator can raise (spec 19): permission denied (`forbidden`), arg
+ * re-validation failure (`invalid`), illegal state (`conflict`), or missing row (`not_found`).
+ */
 export const pushVerdictSchema = z.object({
   seq: z.number(),
   status: z.enum(["applied", "rejected"]),
-  reason: z.enum(["forbidden", "invalid", "conflict"]).optional(),
+  reason: z.enum(["forbidden", "invalid", "conflict", "not_found"]).optional(),
 });
 export type PushVerdict = z.infer<typeof pushVerdictSchema>;
 
