@@ -5,3 +5,4 @@ export * from "./label";
 export * from "./note";
 export * from "./share";
 export * from "./socket";
+export * from "./sync";
