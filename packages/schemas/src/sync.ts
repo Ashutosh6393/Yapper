@@ -100,14 +100,24 @@ export const pushRequestSchema = z.object({
 export type PushRequest = z.infer<typeof pushRequestSchema>;
 
 /**
+ * The four deny-by-default permanent-reject reasons a server mutator can raise (ADR-0009). Finalized by
+ * spec 21 as a named enum so the api push handler, the web classifier, and the toast-copy map all
+ * reference one contract (never a per-app literal). `forbidden` = permission denied (`403`), `invalid` =
+ * arg re-validation failure (`422`), `conflict` = illegal state (`409`), `not_found` = missing row
+ * (`404`). Request-level failures (`401`/`429`/`5xx`/offline) are NOT reasons — they are transient and
+ * ride outside a `200` body (see the web classifier, spec 21).
+ */
+export const pushRejectReasonSchema = z.enum(["forbidden", "invalid", "conflict", "not_found"]);
+export type PushRejectReason = z.infer<typeof pushRejectReasonSchema>;
+
+/**
  * A per-mutation verdict (ADR-0009). `reason` is present only on a permanent reject — one of the four
- * deny-by-default reasons a server mutator can raise (spec 19): permission denied (`forbidden`), arg
- * re-validation failure (`invalid`), illegal state (`conflict`), or missing row (`not_found`).
+ * {@link pushRejectReasonSchema} codes a server mutator can raise (spec 19).
  */
 export const pushVerdictSchema = z.object({
   seq: z.number(),
   status: z.enum(["applied", "rejected"]),
-  reason: z.enum(["forbidden", "invalid", "conflict", "not_found"]).optional(),
+  reason: pushRejectReasonSchema.optional(),
 });
 export type PushVerdict = z.infer<typeof pushVerdictSchema>;
 
