@@ -1,11 +1,11 @@
-import type { Mutation, NoteMeta } from "@yapper/schemas";
+import type { Label, LabelChip, Mutation, MutationName, NoteMeta } from "@yapper/schemas";
 import Dexie, { type EntityTable } from "dexie";
 
 /**
- * The client's durable local store for the sync engine (ADR-0003, spec 14). Dexie wraps IndexedDB;
- * this module defines the canonical `yapper-sync` schema, the `clientGroupID` identity bootstrap, and
- * the `rebuild()` seam. Spec 15 fills in the read/replay behavior — spec 14 ships only the skeleton,
- * and nothing here runs unless `NEXT_PUBLIC_SYNC_ENGINE` is on (see `flag.ts`).
+ * The client's durable local store for the sync engine (ADR-0003). Dexie wraps IndexedDB; this module
+ * defines the canonical `yapper-sync` schema, the `clientGroupID` identity bootstrap, and the
+ * `rebuild()` materialization primitive. Nothing here runs unless `NEXT_PUBLIC_SYNC_ENGINE` is on (see
+ * `flag.ts`). Spec 14 shipped the skeleton; spec 15 implements the read path (`rebuild()` + selectors).
  */
 
 /** Authoritative note-meta row the puller writes into `db.base`. The wire/base shape (`NoteMeta`). */
@@ -17,28 +17,42 @@ export type MutationRow = { seq: number } & Mutation;
 /** A `db.sync` singleton row (clientGroupID | cookie | lastMutationID). */
 export type SyncRow = { key: string; value: string };
 
-/** Materialized view the UI reads (spec 15 extends this — keep minimal here). */
-export type NoteRow = { id: string };
+/**
+ * A materialized `db.notes` row the UI reads. `NoteMeta` (label **ids**) + resolved `labels` chips —
+ * a superset of `NoteSummary`, so the dashboard cards consume it with no prop-type change. `isOwner`
+ * gates owner-only UI on the note page; it stays `undefined` until the puller carries owner info on
+ * base rows (spec 16). A local rendering type — NOT a wire shape (kept out of `@yapper/schemas`).
+ */
+export interface LocalNote extends NoteMeta {
+  labels: LabelChip[];
+  isOwner?: boolean;
+}
 
-/** Label row (spec 15 extends this — keep minimal here). */
-export type LabelRow = { id: string };
+/** A `db.labels` row — mirrors the `Label` wire shape (filled by the puller / mutators, specs 16/19). */
+export type LocalLabel = Label;
 
-/** The typed `yapper-sync` database. Tables are indexed by the `db.version(1)` store spec below. */
+/** The typed `yapper-sync` database. */
 export type SyncDatabase = Dexie & {
   base: EntityTable<BaseRow, "id">;
-  notes: EntityTable<NoteRow, "id">;
+  notes: EntityTable<LocalNote, "id">;
   mutations: EntityTable<MutationRow, "seq">;
-  labels: EntityTable<LabelRow, "id">;
+  labels: EntityTable<LocalLabel, "id">;
   sync: EntityTable<SyncRow, "key">;
 };
 
 export const db = new Dexie("yapper-sync") as SyncDatabase;
 db.version(1).stores({
   base: "id", // authoritative note-meta rows — puller writes only
-  notes: "id", // materialized view the UI reads via useLiveQuery (spec 15)
+  notes: "id", // materialized view the UI reads via useLiveQuery
   mutations: "++seq, id", // pending queue; auto-inc seq = apply order; index by note id
   labels: "id", // label rows
   sync: "key", // singletons: clientGroupID | cookie | lastMutationID
+});
+// Spec 15: the materialized view gains lifecycle/updatedAt/multiEntry-labelIds indexes for the list
+// selectors. db.notes is disposable (rebuildable from base + queue), so this needs no data migration —
+// the next rebuild() repopulates it. base/mutations/labels/sync are unchanged.
+db.version(2).stores({
+  notes: "id, lifecycle, updatedAt, *labelIds",
 });
 
 const CLIENT_GROUP_ID_KEY = "clientGroupID";
@@ -57,12 +71,60 @@ export async function getClientGroupID(): Promise<string> {
   return id;
 }
 
+/** A working draft of authoritative notes, keyed by id, that the queue is folded into during replay. */
+export type NoteDraft = Map<string, NoteMeta>;
+
+/** A pure, replayable client mutator: apply one mutation's effect to the draft in place. */
+export type ClientMutator = (draft: NoteDraft, args: unknown) => void;
+
+// The per-name client-mutator registry. Spec 15 defines the dispatch + fold; **spec 19 registers the
+// 14 bodies.** Empty until then — and the queue is empty until 19 too, so the fold is a no-op and
+// rebuild() = base → materialized mirror.
+const clientMutators = new Map<MutationName, ClientMutator>();
+
+/** Register a client mutator body (spec 19 wires the 14; tests register minimal ones to drive replay). */
+export function registerClientMutator(name: MutationName, mutator: ClientMutator): void {
+  clientMutators.set(name, mutator);
+}
+
+/**
+ * Dispatch one queued mutation onto the draft. Replay is **total**: an unregistered name is a
+ * programmer error (throws), never a silent skip — a missing mutator means the queue can't be replayed.
+ */
+export function applyClientMutation(draft: NoteDraft, mutation: MutationRow): void {
+  const mutator = clientMutators.get(mutation.name);
+  if (!mutator) throw new Error(`No client mutator registered for "${mutation.name}"`);
+  mutator(draft, mutation.args);
+}
+
 /**
  * Recompute `db.notes = replay(db.mutations) over db.base`. The shared primitive run after every local
- * mutation and every pull. Spec 14 defines this seam only; **spec 15 implements the replay body.** The
- * throwing stub is a tripwire against anyone relying on it before 15 lands (the flag keeps it out of
- * the live path regardless).
+ * mutation and every pull. Pure, total, deterministic: it fully recomputes the materialized view
+ * (clear + bulkPut, never a diff) so re-running yields identical rows. Wrapped in one `rw` transaction
+ * over all four tables so a concurrent pull/mutate can't observe or interleave a half-applied view.
  */
 export async function rebuild(): Promise<void> {
-  throw new Error("rebuild() not implemented — spec 15");
+  await db.transaction("rw", db.base, db.mutations, db.labels, db.notes, async () => {
+    // 1. Seed a draft from the authoritative base rows.
+    const draft: NoteDraft = new Map();
+    for (const row of await db.base.toArray()) draft.set(row.id, { ...row });
+
+    // 2. Replay the pending queue in monotonic seq order (pure client mutators; bodies = spec 19).
+    const queued = await db.mutations.orderBy("seq").toArray();
+    for (const mutation of queued) applyClientMutation(draft, mutation);
+
+    // 3. Materialize: resolve label chips from db.labels, dropping ids with no label row (best-effort).
+    const labels = new Map((await db.labels.toArray()).map((l) => [l.id, l]));
+    const materialized: LocalNote[] = [...draft.values()].map((note) => ({
+      ...note,
+      labels: note.labelIds.flatMap((id) => {
+        const label = labels.get(id);
+        return label ? [{ id: label.id, name: label.name, color: label.color }] : [];
+      }),
+    }));
+
+    // 4. Replace the whole disposable table — deterministic, no drift.
+    await db.notes.clear();
+    await db.notes.bulkPut(materialized);
+  });
 }

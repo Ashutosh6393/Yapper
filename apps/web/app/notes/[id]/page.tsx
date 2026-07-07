@@ -5,7 +5,8 @@ import { useEffect } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useSession } from "../../../lib/auth-client";
-import { useNote, useTrashNote } from "../../../lib/queries/notes";
+import { useTrashNote } from "../../../lib/queries/notes";
+import { useNoteDetail } from "../../../lib/sync/reads";
 import { Editor } from "./Editor";
 import { ShareDialog } from "./ShareDialog";
 
@@ -17,7 +18,7 @@ export default function NotePage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
 
-  const noteQuery = useNote(id);
+  const noteDetail = useNoteDetail(id);
   const trashNote = useTrashNote();
 
   useEffect(() => {
@@ -40,10 +41,10 @@ export default function NotePage() {
     router.push("/dashboard");
   }
 
-  if (noteQuery.isPending) {
+  if (noteDetail.loading) {
     return <main className={`${SHELL} text-muted-foreground`}>Loading note…</main>;
   }
-  const note = noteQuery.data;
+  const note = noteDetail.note;
   if (!note) {
     return (
       <main className={SHELL}>

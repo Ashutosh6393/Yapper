@@ -1,8 +1,9 @@
 "use client";
 
 import { type ReactNode, useEffect } from "react";
-import { getClientGroupID } from "./db";
+import { getClientGroupID, rebuild } from "./db";
 import { isSyncEngineEnabled } from "./flag";
+import { pull } from "./pull";
 
 /**
  * The flag-gated mount point for the local-first sync engine (spec 14, ADR-004). When the flag is off
@@ -19,9 +20,19 @@ export function SyncEngineProvider({ children }: { children: ReactNode }) {
 
 function SyncEngineBootstrap({ children }: { children: ReactNode }) {
   useEffect(() => {
-    // Opens `yapper-sync` (Dexie opens lazily on first access) and mints/loads the client-group id.
-    // No reads are gated on this yet, so children render immediately.
-    void getClientGroupID();
+    let cancelled = false;
+    // One-shot initial fill: mint/load the client-group id, pull the metadata delta into db.base
+    // (spec 16 seam), then materialize db.notes. Children render immediately — the reads gate on
+    // useLiveQuery's first-tick `undefined` (skeleton), not on this promise. Reconnect/focus/poke
+    // re-pulls attach to this same seam in spec 16.
+    (async () => {
+      await getClientGroupID();
+      await pull();
+      if (!cancelled) await rebuild();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
   return <>{children}</>;
 }

@@ -25,13 +25,13 @@ import {
   noteKeys,
   useArchiveNote,
   useCreateNote,
-  useNotes,
   usePermanentDelete,
   useRestoreNote,
   useSharedNotes,
   useTrashNote,
   useUnarchiveNote,
 } from "../../lib/queries/notes";
+import { useNoteList } from "../../lib/sync/reads";
 
 function matches(note: NoteSummary, q: string): boolean {
   if (!q) return true;
@@ -59,7 +59,9 @@ export default function DashboardPage() {
   const { view, labelId } = readActiveView(searchParams);
   const isShared = view === "shared";
 
-  const notesQuery = useNotes(filterForView(view), labelId, !isShared);
+  // Owned notes read through the flag-gated adapter (Dexie when the sync engine is on, else Query).
+  // Shared-with-me stays on Query in both flag states (NoteMeta has no owner marker — spec 16).
+  const ownedList = useNoteList(filterForView(view), labelId, !isShared);
   const sharedQuery = useSharedNotes();
   const labelsQuery = useLabels();
   const createNote = useCreateNote();
@@ -104,8 +106,8 @@ export default function DashboardPage() {
   }, [view, labelId]);
 
   const owned = useMemo(
-    () => (notesQuery.data ?? []).filter((n) => matches(n, search)),
-    [notesQuery.data, search],
+    () => (ownedList.notes ?? []).filter((n) => matches(n, search)),
+    [ownedList.notes, search],
   );
   const shared = useMemo(
     () => (sharedQuery.data ?? []).filter((n) => matches(n, search)),
@@ -168,9 +170,9 @@ export default function DashboardPage() {
   const activeLabel = labelId ? labels.find((l) => l.id === labelId) : undefined;
   const heading = labelId ? (activeLabel?.name ?? "Labeled notes") : VIEW_META[view].label;
   const sectionNotes = isShared ? shared : owned;
-  const sectionLoading = isShared ? sharedQuery.isPending : notesQuery.isPending;
+  const sectionLoading = isShared ? sharedQuery.isPending : ownedList.loading;
   // The note whose Labels… editor is open (looked up unfiltered so search doesn't hide it).
-  const editingNote = (notesQuery.data ?? []).find((n) => n.id === labelsNoteId);
+  const editingNote = (ownedList.notes ?? []).find((n) => n.id === labelsNoteId);
   // Labels… is offered only on owned, non-trash cards.
   const canEditLabels = !isShared && view !== "trash";
 
