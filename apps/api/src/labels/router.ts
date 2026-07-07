@@ -3,6 +3,7 @@ import { createLabelBodySchema } from "@yapper/schemas";
 import { and, count, eq, isNull } from "drizzle-orm";
 import { type RequestHandler, Router } from "express";
 import { authed } from "../authed";
+import { deleteLabelById, insertLabel } from "./service";
 
 /**
  * Labels CRUD, mounted at `/api/labels`, gated by the supplied auth middleware. Every query is
@@ -60,10 +61,7 @@ export function labelsRouter(requireAuthMw: RequestHandler): Router {
         return;
       }
 
-      const [created] = await db
-        .insert(label)
-        .values({ ownerId: userId, name, color })
-        .returning({ id: label.id, name: label.name, color: label.color });
+      const created = await insertLabel(db, { ownerId: userId, name, color });
       res.status(201).json({ ...created, noteCount: 0 });
     }),
   );
@@ -90,7 +88,7 @@ export function labelsRouter(requireAuthMw: RequestHandler): Router {
         res.status(403).json({ error: "Forbidden" });
         return;
       }
-      await db.delete(label).where(eq(label.id, id));
+      await deleteLabelById(db, id);
       res.status(204).end();
     }),
   );

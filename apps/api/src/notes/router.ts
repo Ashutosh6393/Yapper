@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { db, label, note, noteCollaborator, noteLabel, user } from "@yapper/db";
 import { bustNotePermissions, revokeChannel, roleChangeChannel } from "@yapper/permissions";
 import {
@@ -13,6 +12,16 @@ import { authed } from "../authed";
 import { permCache, resolvePerm } from "../permissions";
 import { redisPublisher } from "../redis";
 import { createNoteRecord } from "./create";
+import {
+  archiveNote,
+  makeNotePrivate,
+  mintShareToken,
+  permanentlyDeleteNote,
+  restoreNote,
+  setNoteShareLevel,
+  trashNote,
+  unarchiveNote,
+} from "./service";
 
 /** Owner-only check, used by mutations the owner alone may perform (delete, share). */
 function ownsNote(row: { ownerId: string }, userId: string): boolean {
@@ -46,11 +55,6 @@ async function requireOwnedNote(
 
 /** Where the share link points; the web app serves `/share/:token`. */
 const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
-
-/** A cryptographically-random, URL-safe bearer token for a capability link (still gated by login). */
-function mintShareToken(): string {
-  return randomBytes(24).toString("base64url");
-}
 
 /**
  * Notes CRUD, mounted at `/api/notes`. Every route is gated by the supplied auth middleware.
@@ -274,10 +278,7 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         return;
       }
       const token = row.shareToken ?? mintShareToken();
-      await db
-        .update(note)
-        .set({ access: level, shareToken: token, updatedAt: new Date() })
-        .where(eq(note.id, id));
+      await setNoteShareLevel(db, id, level, token);
       // Everyone's effective permission on this note may have changed — drop all cached entries.
       await bustNotePermissions(permCache, id);
       await redisPublisher?.publish(roleChangeChannel(id), JSON.stringify({ newLevel: level }));
@@ -309,14 +310,7 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         return;
       }
       await db.transaction(async (tx) => {
-        await tx
-          .update(note)
-          .set({ access: "private", shareToken: null, updatedAt: new Date() })
-          .where(eq(note.id, id));
-        await tx
-          .update(noteCollaborator)
-          .set({ status: "revoked" })
-          .where(eq(noteCollaborator.noteId, id));
+        await makeNotePrivate(tx, id);
       });
       await bustNotePermissions(permCache, id);
       await redisPublisher?.publish(revokeChannel(id), JSON.stringify({ reason: "made_private" }));
@@ -335,7 +329,7 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         return;
       }
       if (!(await requireOwnedNote(id, userId, res))) return;
-      await db.update(note).set({ archivedAt: new Date() }).where(eq(note.id, id));
+      await archiveNote(db, id);
       res.status(204).end();
     }),
   );
@@ -350,7 +344,7 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         return;
       }
       if (!(await requireOwnedNote(id, userId, res))) return;
-      await db.update(note).set({ archivedAt: null }).where(eq(note.id, id));
+      await unarchiveNote(db, id);
       res.status(204).end();
     }),
   );
@@ -367,7 +361,7 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         return;
       }
       if (!(await requireOwnedNote(id, userId, res))) return;
-      await db.update(note).set({ trashedAt: new Date() }).where(eq(note.id, id));
+      await trashNote(db, id);
       await bustNotePermissions(permCache, id);
       res.status(204).end();
     }),
@@ -384,7 +378,7 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         return;
       }
       if (!(await requireOwnedNote(id, userId, res))) return;
-      await db.update(note).set({ trashedAt: null, archivedAt: null }).where(eq(note.id, id));
+      await restoreNote(db, id);
       await bustNotePermissions(permCache, id);
       res.status(204).end();
     }),
@@ -441,7 +435,7 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         res.status(409).json({ error: "Note must be trashed before permanent deletion" });
         return;
       }
-      await db.delete(note).where(eq(note.id, id));
+      await permanentlyDeleteNote(db, id);
       res.status(204).end();
     }),
   );
