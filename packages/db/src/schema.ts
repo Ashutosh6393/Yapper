@@ -3,6 +3,7 @@ import {
   boolean,
   customType,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -235,6 +236,30 @@ export const syncClient = pgTable("sync_client", {
     .references(() => user.id, { onDelete: "cascade" }),
 });
 
+/**
+ * Client View Record store (spec 16, ADR-0004). One row per `(client_group_id, cookie)` holds the
+ * exact `{ noteId → metaVersion }` snapshot the puller last returned to that client group at that
+ * cookie. Each `POST /api/sync/pull` diffs the caller's current authorized view against the row named
+ * by the incoming cookie to produce `puts` (new/changed) and `dels` (notes that left the view) — so
+ * removals fall out for free with no tombstone table. Stored as one `jsonb` blob (not child rows): the
+ * diff is a whole-snapshot set op over a bounded set, done in app memory, so per-entry SQL indexing
+ * buys nothing (decisions ADR-001). The cookie is opaque + monotonic per client group; old cookies are
+ * pruned to the latest 1–2 per group each pull.
+ */
+export const syncCvr = pgTable(
+  "sync_cvr",
+  {
+    clientGroupId: uuid("client_group_id").notNull(),
+    cookie: bigint("cookie", { mode: "number" }).notNull(),
+    snapshot: jsonb("snapshot").$type<Record<string, number>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.clientGroupId, t.cookie] }),
+    index("sync_cvr_client_group_idx").on(t.clientGroupId),
+  ],
+);
+
 export type Note = typeof note.$inferSelect;
 export type NewNote = typeof note.$inferInsert;
 export type NoteDoc = typeof noteDoc.$inferSelect;
@@ -250,3 +275,5 @@ export type NewUser = typeof user.$inferInsert;
 export type Session = typeof session.$inferSelect;
 export type SyncClient = typeof syncClient.$inferSelect;
 export type NewSyncClient = typeof syncClient.$inferInsert;
+export type SyncCvr = typeof syncCvr.$inferSelect;
+export type NewSyncCvr = typeof syncCvr.$inferInsert;

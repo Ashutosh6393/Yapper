@@ -214,6 +214,14 @@ describe("pullRequestSchema / pullResponseSchema", () => {
     };
     expect(pullResponseSchema.parse(res)).toEqual(res);
   });
+
+  it("carries the additive optional reset flag (full-resync signal), defaulting to absent", () => {
+    const base = { puts: [], dels: [], lastMutationID: 0, cookie: "c1" };
+    // A parser that ignores `reset` still validates (additive, no field renamed).
+    expect(pullResponseSchema.parse(base).reset).toBeUndefined();
+    expect(pullResponseSchema.parse({ ...base, reset: true }).reset).toBe(true);
+    expect(pullResponseSchema.safeParse({ ...base, reset: "yes" }).success).toBe(false);
+  });
 });
 
 describe("pokeEventSchema", () => {

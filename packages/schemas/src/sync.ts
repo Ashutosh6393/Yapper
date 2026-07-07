@@ -131,13 +131,17 @@ export type PullRequest = z.infer<typeof pullRequestSchema>;
 
 /**
  * The pull response (CVR delta — semantics owned by spec 16; spec 14 fixes the envelope). `cookie` is
- * opaque and monotonic per client-group (never wall-clock — ADR-0004).
+ * opaque and monotonic per client-group (never wall-clock — ADR-0004). `reset` is the one **additive**
+ * spec-16 extension (spec 14 permits additive changes, not renames): `true` only when the server's
+ * `prev` CVR was empty (first pull, or an unknown/pruned cookie), so the client cannot rely on `dels`
+ * to name its orphaned local rows and must reconcile by missing-as-delete (decisions ADR-003).
  */
 export const pullResponseSchema = z.object({
   puts: z.array(noteMetaSchema),
   dels: z.array(z.string()),
   lastMutationID: z.number(),
   cookie: z.string(),
+  reset: z.boolean().optional(),
 });
 export type PullResponse = z.infer<typeof pullResponseSchema>;
 
