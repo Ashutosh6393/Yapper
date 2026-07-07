@@ -7,6 +7,14 @@ import { db } from "./db";
 import { SyncEngineProvider } from "./provider";
 import * as pullModule from "./pull";
 
+// Spec 17 mounts a poke EventSource in the flag-on bootstrap; jsdom has none, so stub a no-op.
+class NoopEventSource {
+  addEventListener() {}
+  removeEventListener() {}
+  close() {}
+}
+vi.stubGlobal("EventSource", NoopEventSource);
+
 const original = process.env.NEXT_PUBLIC_SYNC_ENGINE;
 
 // Only restore the env flag. Closing/deleting the Dexie db here would yank it out from under the

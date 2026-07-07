@@ -1,6 +1,11 @@
 import { db, syncClient } from "@yapper/db";
-import { pokeUserChannel } from "@yapper/permissions";
-import { mutationSchema, type PushVerdict, pushRequestSchema } from "@yapper/schemas";
+import { loadNoteAudience, publishPokes } from "@yapper/permissions";
+import {
+  type Mutation,
+  mutationSchema,
+  type PushVerdict,
+  pushRequestSchema,
+} from "@yapper/schemas";
 import { eq } from "drizzle-orm";
 import type { Request, Response } from "express";
 import type { Executor } from "../notes/service";
@@ -20,6 +25,25 @@ import {
  * request 5xx's and the pointer is not advanced past the failure (the client re-pushes — spec 21).
  * After all commits, post-commit side effects run and a content-free poke is published (spec 17).
  */
+
+/**
+ * The note a mutation touches (for the poke audience). Note-scoped mutations carry the id directly;
+ * label-scoped ones (`createLabel`/`renameLabel`/`deleteLabel`) touch the owner's own carrier notes,
+ * whose only audience is the owner — always the pusher, already in the audience — so they return `null`.
+ */
+function touchedNoteId(m: Mutation): string | null {
+  switch (m.name) {
+    case "applyLabel":
+    case "removeLabel":
+      return m.args.noteId;
+    case "createLabel":
+    case "renameLabel":
+    case "deleteLabel":
+      return null;
+    default:
+      return m.args.id;
+  }
+}
 
 /** Read the group's de-dup pointer + bound user. `null` when the group has never pushed. */
 async function getSyncClient(
@@ -72,13 +96,15 @@ export function handlePush(deps: PostCommitDeps) {
     const ordered = [...mutations].sort((a, b) => a.seq - b.seq);
     const verdicts: PushVerdict[] = [];
     const postCommits: PostCommit[] = [];
+    // Notes freshly mutated in this push — their audiences get poked to reconcile (spec 17).
+    const touchedNoteIds = new Set<string>();
 
     for (const m of ordered) {
       await db.transaction(async (tx) => {
         const client = await getSyncClient(tx, clientGroupID);
         const lastId = client?.lastMutationId ?? 0;
         if (m.seq <= lastId) {
-          // Idempotent replay: already recorded, re-execute nothing.
+          // Idempotent replay: already recorded, re-execute nothing (and no fresh change to poke).
           verdicts.push({ seq: m.seq, status: "applied" });
           return;
         }
@@ -88,6 +114,8 @@ export function handlePush(deps: PostCommitDeps) {
           const postCommit = await applyServerMutation({ userId, tx }, member.data);
           await advanceLastMutationID(tx, clientGroupID, userId, m.seq);
           verdicts.push({ seq: m.seq, status: "applied" });
+          const noteId = touchedNoteId(member.data);
+          if (noteId) touchedNoteIds.add(noteId);
           if (postCommit) postCommits.push(postCommit);
         } catch (err) {
           if (err instanceof MutationRejected) {
@@ -107,8 +135,14 @@ export function handlePush(deps: PostCommitDeps) {
     const client = await getSyncClient(db, clientGroupID);
     const lastMutationID = client?.lastMutationId ?? 0;
 
-    // Content-free poke so the pusher's own other tabs/sessions pull the delta (spec 17 delivers it).
-    await deps.publisher?.publish(pokeUserChannel(userId), JSON.stringify({ type: "poke" }));
+    // Fan a content-free poke to every affected user so all their sessions pull the delta (spec 17):
+    // each touched note's audience (owner + active collaborators) unioned with the pusher (their own
+    // other tabs). Deduped + null-Redis-tolerant by publishPokes.
+    const audience = new Set<string>([userId]);
+    for (const noteId of touchedNoteIds) {
+      for (const u of await loadNoteAudience(noteId)) audience.add(u);
+    }
+    await publishPokes(deps.publisher, audience);
 
     res.json({ lastMutationID, verdicts });
   };

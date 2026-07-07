@@ -241,8 +241,13 @@ describe("pullRequestSchema / pullResponseSchema", () => {
 });
 
 describe("pokeEventSchema", () => {
-  it("is a content-free poke nudge", () => {
+  it("is a content-free poke nudge, with an optional server timestamp", () => {
     expect(pokeEventSchema.parse({ type: "poke" })).toEqual({ type: "poke" });
+    expect(pokeEventSchema.parse({ type: "poke", ts: 1_700_000_000_000 })).toEqual({
+      type: "poke",
+      ts: 1_700_000_000_000,
+    });
     expect(pokeEventSchema.safeParse({ type: "other" }).success).toBe(false);
+    expect(pokeEventSchema.safeParse({ type: "poke", ts: "soon" }).success).toBe(false);
   });
 });
