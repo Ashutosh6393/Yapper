@@ -6,6 +6,7 @@ import {
   pokeEventSchema,
   pullRequestSchema,
   pullResponseSchema,
+  pushRejectReasonSchema,
   pushRequestSchema,
   pushResponseSchema,
 } from "./sync";
@@ -152,6 +153,21 @@ describe("pushRequestSchema", () => {
     expect(
       pushRequestSchema.safeParse({ clientGroupID: "not-a-uuid", mutations: [] }).success,
     ).toBe(false);
+  });
+});
+
+describe("pushRejectReasonSchema", () => {
+  it("enumerates exactly the four deny-by-default reject reasons", () => {
+    expect(pushRejectReasonSchema.options).toEqual([
+      "forbidden",
+      "invalid",
+      "conflict",
+      "not_found",
+    ]);
+  });
+
+  it("rejects a request-level status (401/429/5xx are transient, not reject reasons)", () => {
+    expect(pushRejectReasonSchema.safeParse("rate_limited").success).toBe(false);
   });
 });
 

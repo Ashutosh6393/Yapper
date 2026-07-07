@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from "vitest";
 vi.mock("../http", () => ({ apiFetch: vi.fn() }));
 
 import { apiFetch } from "../http";
+import { cancelScheduledRetry, resetBackoff } from "./backoff";
 import { db, rebuild } from "./db";
 // Register the client-mutator bodies so rebuild() folds the queued createNote.
 import "./mutators";
@@ -14,6 +15,9 @@ import { push, setPushOutcomeHandler } from "./push";
 afterEach(async () => {
   vi.clearAllMocks();
   setPushOutcomeHandler(null);
+  // The pusher schedules a real backoff retry on transient (spec 21) — cancel it so no timer leaks.
+  cancelScheduledRetry();
+  resetBackoff();
   await Promise.all([
     db.base.clear(),
     db.mutations.clear(),

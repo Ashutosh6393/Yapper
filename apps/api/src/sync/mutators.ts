@@ -6,7 +6,7 @@ import {
   revokeChannel,
   roleChangeChannel,
 } from "@yapper/permissions";
-import type { Mutation, MutationName } from "@yapper/schemas";
+import type { Mutation, MutationName, PushRejectReason } from "@yapper/schemas";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { deleteLabelById, insertLabel, renameLabelById } from "../labels/service";
 import { createNoteRecord } from "../notes/create";
@@ -36,7 +36,7 @@ import {
 /** A permanent, deny-by-default rejection. Only these four reasons yield a `rejected` verdict; any
  * other throw aborts the request (5xx / transient). */
 export class MutationRejected extends Error {
-  constructor(public reason: "forbidden" | "invalid" | "conflict" | "not_found") {
+  constructor(public reason: PushRejectReason) {
     super(reason);
     this.name = "MutationRejected";
   }
