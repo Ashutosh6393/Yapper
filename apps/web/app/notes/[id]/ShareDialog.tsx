@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/select";
 import { useMakePrivate, useShareNote } from "../../../lib/queries/notes";
 import { useUiStore } from "../../../lib/stores/ui";
+import * as engineActions from "../../../lib/sync/actions";
+import { isSyncEngineEnabled } from "../../../lib/sync/flag";
 
 type ShareLevel = "view" | "edit";
 
@@ -40,6 +42,7 @@ export function ShareDialog({
   const openDialog = useUiStore((s) => s.openShareDialog);
   const closeDialog = useUiStore((s) => s.closeShareDialog);
 
+  const syncOn = isSyncEngineEnabled();
   const shareNote = useShareNote(noteId);
   const makePrivate = useMakePrivate(noteId);
 
@@ -53,9 +56,16 @@ export function ShareDialog({
   // Don't leak the open state into the next note page.
   useEffect(() => () => closeDialog(), [closeDialog]);
 
-  const busy = shareNote.isPending || makePrivate.isPending;
+  const busy = !syncOn && (shareNote.isPending || makePrivate.isPending);
 
   async function enableSharing() {
+    if (syncOn) {
+      // Engine path: enqueue the access change optimistically. The capability URL arrives via the CVR
+      // pull (spec 16), so it isn't shown synchronously here (staged behind the off-by-default flag).
+      engineActions.setShareLevel(noteId, level);
+      setShare({ access: level });
+      return;
+    }
     try {
       const info = await shareNote.mutateAsync(level);
       setShare({ url: info.url, access: info.access });
@@ -65,6 +75,12 @@ export function ShareDialog({
   }
 
   async function makeNotePrivate() {
+    if (syncOn) {
+      engineActions.makePrivate(noteId);
+      setShare(null);
+      closeDialog();
+      return;
+    }
     try {
       await makePrivate.mutateAsync();
       setShare(null);

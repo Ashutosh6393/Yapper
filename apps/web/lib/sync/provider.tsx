@@ -3,7 +3,11 @@
 import { type ReactNode, useEffect } from "react";
 import { getClientGroupID, rebuild } from "./db";
 import { isSyncEngineEnabled } from "./flag";
+// Registers the 14 client-mutator bodies into rebuild()'s fold (side effect) — must load before any
+// rebuild that folds a leftover queue.
+import "./mutators";
 import { pull } from "./pull";
+import { schedulePush } from "./push";
 
 /**
  * The flag-gated mount point for the local-first sync engine (spec 14, ADR-004). When the flag is off
@@ -28,7 +32,10 @@ function SyncEngineBootstrap({ children }: { children: ReactNode }) {
     (async () => {
       await getClientGroupID();
       await pull();
-      if (!cancelled) await rebuild();
+      if (cancelled) return;
+      await rebuild();
+      // Flush any mutations left queued from a previous session (offline edits, unsent pushes).
+      schedulePush();
     })();
     return () => {
       cancelled = true;

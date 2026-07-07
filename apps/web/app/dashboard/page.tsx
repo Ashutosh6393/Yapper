@@ -20,7 +20,7 @@ import {
   viewQuery,
 } from "@/lib/dashboard-view";
 import { signOut, useSession } from "../../lib/auth-client";
-import { useDeleteLabel, useLabels } from "../../lib/queries/labels";
+import { useDeleteLabel } from "../../lib/queries/labels";
 import {
   noteKeys,
   useArchiveNote,
@@ -31,7 +31,9 @@ import {
   useTrashNote,
   useUnarchiveNote,
 } from "../../lib/queries/notes";
-import { useNoteList } from "../../lib/sync/reads";
+import * as engineActions from "../../lib/sync/actions";
+import { isSyncEngineEnabled } from "../../lib/sync/flag";
+import { useLabelList, useNoteList } from "../../lib/sync/reads";
 
 function matches(note: NoteSummary, q: string): boolean {
   if (!q) return true;
@@ -58,12 +60,15 @@ export default function DashboardPage() {
 
   const { view, labelId } = readActiveView(searchParams);
   const isShared = view === "shared";
+  // When the sync engine is on, all metadata writes flip to the engine together (ADR-0007); flag off
+  // keeps today's TanStack Query mutations. The flag is constant per process, so this is stable.
+  const syncOn = isSyncEngineEnabled();
 
   // Owned notes read through the flag-gated adapter (Dexie when the sync engine is on, else Query).
   // Shared-with-me stays on Query in both flag states (NoteMeta has no owner marker — spec 16).
   const ownedList = useNoteList(filterForView(view), labelId, !isShared);
   const sharedQuery = useSharedNotes();
-  const labelsQuery = useLabels();
+  const labelList = useLabelList();
   const createNote = useCreateNote();
   const archiveNote = useArchiveNote();
   const unarchiveNote = useUnarchiveNote();
@@ -137,6 +142,14 @@ export default function DashboardPage() {
     setSidebarOpen(false);
     setCreating(true);
     try {
+      if (syncOn) {
+        // Engine path: mint the id, enqueue createNote (optimistic — the note materializes in Dexie via
+        // rebuild), and open the editor on it. NoteDialog reads it through the flag-gated Dexie path.
+        const id = engineActions.createNote();
+        setCreatedId(id);
+        setDialogNoteId(id);
+        return;
+      }
       const note = await createNote.mutateAsync();
       queryClient.setQueryData(noteKeys.detail(note.id), {
         id: note.id,
@@ -166,7 +179,7 @@ export default function DashboardPage() {
     router.push(viewQuery(next));
   }
 
-  const labels = labelsQuery.data ?? [];
+  const labels = labelList ?? [];
   const activeLabel = labelId ? labels.find((l) => l.id === labelId) : undefined;
   const heading = labelId ? (activeLabel?.name ?? "Labeled notes") : VIEW_META[view].label;
   const sectionNotes = isShared ? shared : owned;
@@ -182,7 +195,8 @@ export default function DashboardPage() {
   }
 
   function removeLabel(id: string) {
-    deleteLabel.mutate(id);
+    if (syncOn) engineActions.deleteLabel(id);
+    else deleteLabel.mutate(id);
     if (id === labelId) router.push(viewQuery("my"));
   }
 
@@ -242,11 +256,15 @@ export default function DashboardPage() {
             ownerNames={isShared ? ownerNames : undefined}
             emptyText={VIEW_META[view].empty}
             onOpen={setDialogNoteId}
-            onArchive={(id) => archiveNote.mutate(id)}
-            onUnarchive={(id) => unarchiveNote.mutate(id)}
-            onTrash={(id) => trashNote.mutate(id)}
-            onRestore={(id) => restoreNote.mutate(id)}
-            onDeleteForever={(id) => permanentDelete.mutate(id)}
+            onArchive={(id) => (syncOn ? engineActions.archiveNote(id) : archiveNote.mutate(id))}
+            onUnarchive={(id) =>
+              syncOn ? engineActions.unarchiveNote(id) : unarchiveNote.mutate(id)
+            }
+            onTrash={(id) => (syncOn ? engineActions.trashNote(id) : trashNote.mutate(id))}
+            onRestore={(id) => (syncOn ? engineActions.restoreNote(id) : restoreNote.mutate(id))}
+            onDeleteForever={(id) =>
+              syncOn ? engineActions.permanentDeleteNote(id) : permanentDelete.mutate(id)
+            }
             onEditLabels={canEditLabels ? (id) => setLabelsNoteId(id) : undefined}
           />
         </main>
