@@ -8,6 +8,14 @@ export function roleChangeChannel(noteId: string): string {
   return `role-change:${noteId}`;
 }
 
+/**
+ * Per-user "you have metadata changes — pull now" poke channel (spec 19 publishes after a push; the
+ * SSE transport that delivers it is spec 17). Content-free by design (ADR-0005).
+ */
+export function pokeUserChannel(userId: string): string {
+  return `poke:user:${userId}`;
+}
+
 export interface RedisPublisher {
   publish(channel: string, payload: string): Promise<void>;
   quit(): Promise<void>;
