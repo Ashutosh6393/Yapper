@@ -71,11 +71,15 @@ export async function getClientGroupID(): Promise<string> {
   return id;
 }
 
-/** A working draft of authoritative notes, keyed by id, that the queue is folded into during replay. */
-export type NoteDraft = Map<string, NoteMeta>;
+/**
+ * The in-memory draft `rebuild()` folds the queue into: authoritative notes + labels keyed by id,
+ * seeded from `db.base` / `db.labels` (ADR-0007). Client mutators mutate it in place — the notes map is
+ * the optimistic note view; the labels map is the optimistic sidebar list (create/rename/delete labels).
+ */
+export type WorkingSet = { notes: Map<string, NoteMeta>; labels: Map<string, LocalLabel> };
 
-/** A pure, replayable client mutator: apply one mutation's effect to the draft in place. */
-export type ClientMutator = (draft: NoteDraft, args: unknown) => void;
+/** A pure, replayable client mutator: apply one mutation's effect to the working set in place. */
+export type ClientMutator = (draft: WorkingSet, args: unknown) => void;
 
 // The per-name client-mutator registry. Spec 15 defines the dispatch + fold; **spec 19 registers the
 // 14 bodies.** Empty until then — and the queue is empty until 19 too, so the fold is a no-op and
@@ -91,7 +95,7 @@ export function registerClientMutator(name: MutationName, mutator: ClientMutator
  * Dispatch one queued mutation onto the draft. Replay is **total**: an unregistered name is a
  * programmer error (throws), never a silent skip — a missing mutator means the queue can't be replayed.
  */
-export function applyClientMutation(draft: NoteDraft, mutation: MutationRow): void {
+export function applyClientMutation(draft: WorkingSet, mutation: MutationRow): void {
   const mutator = clientMutators.get(mutation.name);
   if (!mutator) throw new Error(`No client mutator registered for "${mutation.name}"`);
   mutator(draft, mutation.args);
@@ -105,26 +109,29 @@ export function applyClientMutation(draft: NoteDraft, mutation: MutationRow): vo
  */
 export async function rebuild(): Promise<void> {
   await db.transaction("rw", db.base, db.mutations, db.labels, db.notes, async () => {
-    // 1. Seed a draft from the authoritative base rows.
-    const draft: NoteDraft = new Map();
-    for (const row of await db.base.toArray()) draft.set(row.id, { ...row });
+    // 1. Seed the working set from the authoritative base rows + labels.
+    const draft: WorkingSet = { notes: new Map(), labels: new Map() };
+    for (const row of await db.base.toArray()) draft.notes.set(row.id, { ...row });
+    for (const label of await db.labels.toArray()) draft.labels.set(label.id, { ...label });
 
     // 2. Replay the pending queue in monotonic seq order (pure client mutators; bodies = spec 19).
     const queued = await db.mutations.orderBy("seq").toArray();
     for (const mutation of queued) applyClientMutation(draft, mutation);
 
-    // 3. Materialize: resolve label chips from db.labels, dropping ids with no label row (best-effort).
-    const labels = new Map((await db.labels.toArray()).map((l) => [l.id, l]));
-    const materialized: LocalNote[] = [...draft.values()].map((note) => ({
+    // 3. Materialize notes: resolve label chips from the folded labels, dropping ids with no row.
+    const materialized: LocalNote[] = [...draft.notes.values()].map((note) => ({
       ...note,
       labels: note.labelIds.flatMap((id) => {
-        const label = labels.get(id);
+        const label = draft.labels.get(id);
         return label ? [{ id: label.id, name: label.name, color: label.color }] : [];
       }),
     }));
 
-    // 4. Replace the whole disposable table — deterministic, no drift.
+    // 4. Replace the disposable tables from the folded set — deterministic, no drift. db.labels is
+    // rewritten too so optimistic label create/rename/delete show in the sidebar before the pull.
     await db.notes.clear();
     await db.notes.bulkPut(materialized);
+    await db.labels.clear();
+    await db.labels.bulkPut([...draft.labels.values()]);
   });
 }

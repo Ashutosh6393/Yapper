@@ -82,7 +82,7 @@ describe("rebuild — materialize db.notes = replay(mutations) over base", () =>
     // Spec 15 owns the fold; spec 19 fills the per-name bodies. Register a minimal in-test mutator.
     registerClientMutator("renameNote", (draft, args) => {
       const { id, title } = args as { id: string; title: string };
-      const note = draft.get(id);
+      const note = draft.notes.get(id);
       if (note) note.title = title;
     });
     await db.base.put(baseNote({ title: "Original" }));
@@ -106,7 +106,10 @@ describe("rebuild — materialize db.notes = replay(mutations) over base", () =>
 describe("applyClientMutation — dispatch seam (bodies land in spec 19)", () => {
   it("throws on a mutation name with no registered mutator", () => {
     expect(() =>
-      applyClientMutation(new Map(), { seq: 1, name: "permanentDeleteNote", args: { id: "x" } }),
+      applyClientMutation(
+        { notes: new Map(), labels: new Map() },
+        { seq: 1, name: "permanentDeleteNote", args: { id: "x" } },
+      ),
     ).toThrow();
   });
 });
