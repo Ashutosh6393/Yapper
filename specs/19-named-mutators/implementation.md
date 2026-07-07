@@ -1,8 +1,33 @@
 # 19 · Named, Asymmetric Mutators Implementation
 
-## Status: not-started
+## Status: done
+
+Goal state reached on branch `feat/named-mutators`. All 14 named mutators (client + server), the push
+protocol, and the flag-gated action wiring are landed and green: api 41 tests, web 105 tests, schemas 56,
+permissions 12, db 5; `tsc --noEmit` clean (web + api); Biome clean on all changed files. Everything
+stays behind `NEXT_PUBLIC_SYNC_ENGINE` (off in prod until the 16 → 21 → 17 → 20 sequence completes).
 
 ## Completed
+
+1. **Service extraction (pure refactor):** lifecycle/share/private note writes + label writes lifted
+   into `apps/api/src/notes/service.ts` + `labels/service.ts` (executor-parameterized); routes call them,
+   existing tests stay green.
+2. **DB:** `note.meta_version` (bigint, default 0) + `sync_client` table + migration `0003`.
+3. **`apps/api/src/sync/mutators.ts`:** 14 server mutators keyed from `mutationSchema`, `MutationRejected`
+   (forbidden|invalid|conflict|not_found), `bumpMetaVersion`, type-safe `applyServerMutation` dispatch.
+   Added `not_found` to `pushVerdictSchema.reason` (additive) + `pokeUserChannel` to `@yapper/permissions`.
+4. **`apps/api/src/sync/push.ts` + `router.ts`:** ordered/transactional/idempotent apply loop, per-mutation
+   verdicts, post-commit side effects + poke, `clientGroupID`↔user binding. Mounted at `/api/sync/push`.
+   Tests: ordering, idempotency, verdicts (forbidden/conflict/mixed/5xx-transient), make-private.
+5. **`apps/web/lib/sync/mutators.ts`:** 14 pure client mutators; extended spec-15 `rebuild()` draft to a
+   `WorkingSet { notes, labels }` so label create/rename/delete show optimistically. Tests: completeness,
+   purity, replay+rollback.
+6. **`apps/web/lib/sync/mutate.ts` + `push.ts`:** `enqueue` + 14 per-action helpers; single-in-flight
+   pusher dropping rejected seqs (rollback) with the spec-21 outcome seam. Tests: enqueue+rebuild+nudge,
+   pusher reject-drop / transient-keep / applied-keep.
+7. **Action wiring:** dashboard/label-editor/share-dialog route through `lib/sync/actions.ts` when the flag
+   is on (all 14 flip together); Undo = queued inverse; `useLabelList` adapter; provider registers client
+   mutators before any leftover-queue rebuild.
 
 ## In Progress
 
@@ -37,3 +62,18 @@ and spec 17 (delivers the pokes `push.ts` publishes).
    `apps/web` (`--maxWorkers=1`, `fake-indexeddb`).
 
 ## Session Notes
+
+- **Contract gap resolved:** spec-14's `pushVerdictSchema.reason` only had 3 reasons; the design needs
+  4. Added `not_found` **additively** (schema header permits additive extension; existing test only
+  asserts unknown reasons are rejected).
+- **WorkingSet vs spec-15's notes-only draft:** the design's `WorkingSet { notes, labels }` required
+  extending spec-15's `rebuild()` draft (it shipped notes-only). Threaded labels through the fold and
+  now materialize `db.labels` too; updated 2 spec-15 `db.test.ts` assertions accordingly.
+- **Share URL under the flag:** the capability URL isn't returned by `/push` (it rides the CVR pull,
+  spec 16, and `noteMetaSchema` has no `shareToken`). Flag-on `setShareLevel` is optimistic access-only;
+  URL display is deferred (acceptable — flag-on is non-functional until spec 16 fills `db.base`).
+- **Repo test gotchas hit:** (1) an orphaned `old-token-abc` note from an interrupted `private.test.ts`
+  run blocked the api suite — deleted the leftover rows. (2) Neon latency trips the 5s default; run api
+  tests with `--timeout 30000`. (3) `bunx vitest run --maxWorkers=1` **errors** in this vitest
+  (`minThreads/maxThreads conflict`); use `--no-file-parallelism` for isolated, low-memory runs
+  (`singleFork` leaks `vi.mock`/Dexie state across files — caused a false provider-test failure).
