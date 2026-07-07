@@ -1,4 +1,5 @@
 import {
+  bigint,
   boolean,
   customType,
   index,
@@ -129,6 +130,10 @@ export const note = pgTable(
     // else archivedAt set → archive; else active. Restore clears both.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     trashedAt: timestamp("trashed_at", { withTimezone: true }),
+    // Monotonic metadata version, bumped by every authoritative metadata write (spec 19,
+    // ADR-0004/0007). The sync puller (spec 16) diffs it to detect stale clients. bigint in
+    // `number` mode: safe well past any realistic edit count.
+    metaVersion: bigint("meta_version", { mode: "number" }).notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -215,6 +220,21 @@ export const noteCollaborator = pgTable(
   ],
 );
 
+/**
+ * Per-client-group push de-dup pointer (spec 19, ADR-0007). `last_mutation_id` is the highest push
+ * `seq` the server has recorded for this group; the push handler skips any `seq <= last_mutation_id`
+ * (idempotent replay) and advances it in lock-step with each applied/rejected mutation. `user_id` binds
+ * a group to its first pushing user — a push for that group from a different user is `forbidden`
+ * (decisions ADR-004). `client_group_id` is the browser-minted uuid stored as text.
+ */
+export const syncClient = pgTable("sync_client", {
+  clientGroupId: text("client_group_id").primaryKey(),
+  lastMutationId: bigint("last_mutation_id", { mode: "number" }).notNull().default(0),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+});
+
 export type Note = typeof note.$inferSelect;
 export type NewNote = typeof note.$inferInsert;
 export type NoteDoc = typeof noteDoc.$inferSelect;
@@ -228,3 +248,5 @@ export type NewNoteLabel = typeof noteLabel.$inferInsert;
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
 export type Session = typeof session.$inferSelect;
+export type SyncClient = typeof syncClient.$inferSelect;
+export type NewSyncClient = typeof syncClient.$inferInsert;

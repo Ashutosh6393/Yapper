@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, pool } from "./client";
-import { label, note, noteLabel, user } from "./schema";
+import { label, note, noteLabel, syncClient, user } from "./schema";
 
 test("note round-trips: insert → select by id → defaults applied", async () => {
   // note.owner_id now FK-references user.id (slice 02), so the owner must exist first.
@@ -104,6 +104,57 @@ test("label + note_label: create, attach, unique name per owner, cascade", async
     const afterLabelDelete = await db.select().from(noteLabel).where(eq(noteLabel.noteId, n.id));
     expect(afterLabelDelete).toHaveLength(0);
   } finally {
+    await db.delete(user).where(eq(user.id, owner.id));
+  }
+}, 30_000);
+
+test("note.meta_version defaults to 0 and is bump-able (spec 19)", async () => {
+  const [owner] = await db
+    .insert(user)
+    .values({ name: "Meta Owner", email: `owner-${crypto.randomUUID()}@example.com` })
+    .returning();
+  if (!owner) throw new Error("user insert returned no row");
+
+  try {
+    const [n] = await db.insert(note).values({ ownerId: owner.id }).returning();
+    if (!n) throw new Error("note insert returned no row");
+    expect(n.metaVersion).toBe(0);
+
+    const [bumped] = await db
+      .update(note)
+      .set({ metaVersion: sql`${note.metaVersion} + 1` })
+      .where(eq(note.id, n.id))
+      .returning();
+    expect(bumped?.metaVersion).toBe(1);
+  } finally {
+    await db.delete(user).where(eq(user.id, owner.id));
+  }
+}, 30_000);
+
+test("sync_client round-trips: pk client_group_id, last_mutation_id defaults to 0 (spec 19)", async () => {
+  const [owner] = await db
+    .insert(user)
+    .values({ name: "Sync Owner", email: `owner-${crypto.randomUUID()}@example.com` })
+    .returning();
+  if (!owner) throw new Error("user insert returned no row");
+  const groupId = crypto.randomUUID();
+
+  try {
+    const [row] = await db
+      .insert(syncClient)
+      .values({ clientGroupId: groupId, userId: owner.id })
+      .returning();
+    expect(row?.lastMutationId).toBe(0);
+    expect(row?.clientGroupId).toBe(groupId);
+
+    const [advanced] = await db
+      .update(syncClient)
+      .set({ lastMutationId: 5 })
+      .where(eq(syncClient.clientGroupId, groupId))
+      .returning();
+    expect(advanced?.lastMutationId).toBe(5);
+  } finally {
+    // sync_client.user_id cascades on user delete.
     await db.delete(user).where(eq(user.id, owner.id));
   }
 }, 30_000);
