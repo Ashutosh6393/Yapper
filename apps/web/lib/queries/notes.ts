@@ -8,6 +8,7 @@ import {
   shareInfoSchema,
 } from "@yapper/schemas";
 import { apiFetch } from "../http";
+import { isSyncEngineEnabled } from "../sync/flag";
 import { useOptimisticNoteListMutation } from "./optimistic";
 
 /** Query-key factory so mutations can invalidate the right slices of the notes cache. */
@@ -56,8 +57,13 @@ export function useNote(id: string) {
 export function useCreateNote() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () =>
-      createNoteResponseSchema.parse(await apiFetch("/api/notes", { method: "POST" })),
+    mutationFn: async () => {
+      // With the sync engine on, the client mints the note id (crypto.randomUUID) so the note has a
+      // stable identity offline (ADR-0006); the server accepts it idempotently. Flag off keeps today's
+      // server-generated create (no id sent) byte-for-byte.
+      const body = isSyncEngineEnabled() ? JSON.stringify({ id: crypto.randomUUID() }) : undefined;
+      return createNoteResponseSchema.parse(await apiFetch("/api/notes", { method: "POST", body }));
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: noteKeys.all }),
   });
 }

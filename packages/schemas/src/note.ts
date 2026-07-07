@@ -49,6 +49,15 @@ export const noteMetadataSchema = z.object({
 });
 export type NoteMetadata = z.infer<typeof noteMetadataSchema>;
 
+/** Args for the `createNote` named mutation (spec 19's `mutationSchema`) and the client-supplied id on
+ * `POST /api/notes`. The client mints the id (`crypto.randomUUID`) so a note has a stable identity
+ * offline (ADR-0006); the server validates + idempotently inserts against it. `{ id }` only — title and
+ * access keep their server defaults (`Untitled` / `private`) and change via later mutations. */
+export const createNoteArgsSchema = z.object({
+  id: z.uuid(),
+});
+export type CreateNoteArgs = z.infer<typeof createNoteArgsSchema>;
+
 /** Response of `POST /api/notes` — only the columns the create endpoint returns. */
 export const createNoteResponseSchema = z.object({
   id: z.string(),

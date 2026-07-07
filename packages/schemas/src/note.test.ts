@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  createNoteArgsSchema,
   createNoteResponseSchema,
   labelChipSchema,
   noteListQuerySchema,
@@ -109,6 +110,21 @@ describe("noteMetadataSchema", () => {
       updatedAt: "2026-06-29T00:00:00.000Z",
     };
     expect(noteMetadataSchema.parse(meta).isOwner).toBeUndefined();
+  });
+});
+
+describe("createNoteArgsSchema", () => {
+  it("parses a well-formed client-minted uuid", () => {
+    const args = { id: "11111111-1111-4111-8111-111111111111" };
+    expect(createNoteArgsSchema.parse(args)).toEqual(args);
+  });
+
+  it("rejects a non-uuid id", () => {
+    expect(createNoteArgsSchema.safeParse({ id: "not-a-uuid" }).success).toBe(false);
+  });
+
+  it("rejects a missing id", () => {
+    expect(createNoteArgsSchema.safeParse({}).success).toBe(false);
   });
 });
 

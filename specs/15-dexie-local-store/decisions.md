@@ -84,3 +84,47 @@ in `lib/sync/db.ts`, not in `@yapper/schemas`. Chip resolution is a client rende
 
 - The wire contract stays server-authoritative and label-ids-only; chips never travel the network.
 - `LocalNote` is a superset of `NoteSummary`, so the existing cards consume it with no prop-type change.
+
+## ADR-005: `useNoteList` is owned-only; the dashboard keeps its own `useSharedNotes`
+
+### Context
+
+The design sketches `useNoteList(filter, labelId, isShared)` replacing **both** the dashboard's owned
+(`useNotes`) and shared (`useSharedNotes`) reads, routing `isShared` to Query in both flag states
+(ADR-003). But the dashboard also needs the shared list independently to build the `ownerName` map, and
+`SharedNoteSummary.ownerName` is not on the normalized `{ notes }` return — folding shared into the
+adapter would force the return type wider (to carry `ownerName`) just to unfold it again in the page.
+
+### Decision
+
+`useNoteList(filter, labelId, enabled)` is **owned-only** (flag-gated: `db.notes` on, `useNotes` off),
+where `enabled` mirrors today's `!isShared`. The dashboard keeps `useSharedNotes()` untouched for the
+Shared list + `ownerName` map. This still honors ADR-003 (Shared stays on Query in both flag states) —
+it just leaves the Shared read where it already is instead of proxying it through the adapter.
+
+### Consequences
+
+- Minimal dashboard diff: only the owned read swaps; `{ notes, loading }` stays `NoteSummary`-shaped and
+  the `ownerName` derivation is unchanged.
+- When spec 16 adds the owner field to base rows, the Shared read can move onto a Dexie selector then;
+  nothing here blocks that.
+
+## ADR-006: `LocalNote.isOwner` is optional, `undefined` until spec 16
+
+### Context
+
+The note page (`app/notes/[id]/page.tsx`) reads `note.isOwner` to gate owner controls. `useNoteDetail`
+returns `NoteMetadata | LocalNote | undefined`; `NoteMetadata` has `isOwner?`, but `LocalNote` (from the
+owner-agnostic `NoteMeta`) has no owner marker, so the union member access wouldn't type-check.
+
+### Decision
+
+Add `isOwner?: boolean` to the `LocalNote` interface (a local rendering type, not the wire `NoteMeta`).
+It stays `undefined` in materialization until the puller carries owner info on base rows (spec 16), so
+under the flag the owner controls simply don't show yet — correct for the staged build (flag off in
+prod). This keeps `useNoteDetail`'s union typing clean and forward-compatible with spec 16.
+
+### Consequences
+
+- The note page compiles against one adapter for both flag states; no `as any`, no per-branch typing.
+- Spec 16 populates `isOwner` (via an additive owner field on base rows); the note page needs no change.
