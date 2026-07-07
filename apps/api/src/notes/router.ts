@@ -1,12 +1,18 @@
 import { randomBytes } from "node:crypto";
 import { db, label, note, noteCollaborator, noteLabel, user } from "@yapper/db";
 import { bustNotePermissions, revokeChannel, roleChangeChannel } from "@yapper/permissions";
-import { noteListQuerySchema, setNoteLabelsBodySchema, shareNoteBodySchema } from "@yapper/schemas";
+import {
+  createNoteArgsSchema,
+  noteListQuerySchema,
+  setNoteLabelsBodySchema,
+  shareNoteBodySchema,
+} from "@yapper/schemas";
 import { and, desc, eq, exists, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { type RequestHandler, type Response, Router } from "express";
 import { authed } from "../authed";
 import { permCache, resolvePerm } from "../permissions";
 import { redisPublisher } from "../redis";
+import { createNoteRecord } from "./create";
 
 /** Owner-only check, used by mutations the owner alone may perform (delete, share). */
 function ownsNote(row: { ownerId: string }, userId: string): boolean {
@@ -54,17 +60,38 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
   const router = Router();
   router.use(requireAuthMw);
 
-  // POST /api/notes — create an owned note with defaults (Untitled / private).
+  // POST /api/notes — create an owned note with defaults (Untitled / private). The client may mint the
+  // id (crypto.randomUUID) and send it for offline-stable identity (ADR-0006): an optional, additive
+  // field, so the flag-off client that sends no id keeps today's server-generated behavior.
   router.post(
     "/",
-    authed(async (_req, res, userId) => {
-      const [created] = await db.insert(note).values({ ownerId: userId }).returning({
-        id: note.id,
-        title: note.title,
-        access: note.access,
-        updatedAt: note.updatedAt,
-      });
-      res.status(201).json(created);
+    authed(async (req, res, userId) => {
+      // Present-but-malformed id → 422 (never coerced); absent id → server-generated path.
+      const parsed = createNoteArgsSchema.partial().safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(422).json({ error: "Invalid note id", issues: parsed.error.issues });
+        return;
+      }
+      const { id } = parsed.data;
+
+      if (!id) {
+        const [created] = await db.insert(note).values({ ownerId: userId }).returning({
+          id: note.id,
+          title: note.title,
+          access: note.access,
+          updatedAt: note.updatedAt,
+        });
+        res.status(201).json(created);
+        return;
+      }
+
+      // Client-supplied id: idempotent create with an owner-on-conflict fail-safe (ADR-0006).
+      const result = await createNoteRecord(userId, id);
+      if (result.status === "conflict") {
+        res.status(409).json({ error: "Note id already exists" });
+        return;
+      }
+      res.status(201).json(result.row);
     }),
   );
 
