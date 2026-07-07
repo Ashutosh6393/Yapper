@@ -156,8 +156,10 @@ export const pullResponseSchema = z.object({
 export type PullResponse = z.infer<typeof pullResponseSchema>;
 
 /**
- * A content-free "you have changes — pull now" nudge (ADR-0005). The SSE transport and Redis channel
- * are spec 17; kept here so the server and the client subscriber type against the same shape.
+ * A content-free "you have changes — pull now" nudge (ADR-0005). Delivered over the SSE poke transport
+ * (spec 17) and synthesized server-side (the Redis payload is ignored), so the browser never parses
+ * channel data. `ts` is an optional server timestamp (debug/observability only — the poke carries no
+ * actionable data; it is a pure trigger for `POST /api/sync/pull`).
  */
-export const pokeEventSchema = z.object({ type: z.literal("poke") });
+export const pokeEventSchema = z.object({ type: z.literal("poke"), ts: z.number().optional() });
 export type PokeEvent = z.infer<typeof pokeEventSchema>;
