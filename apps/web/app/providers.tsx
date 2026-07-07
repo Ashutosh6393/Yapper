@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { getQueryClient } from "../lib/query-client";
+import { SyncEngineProvider } from "../lib/sync/provider";
 
 /** App-wide client providers: theme (light/dark via next-themes) + TanStack Query + toasts. */
 export function Providers({ children }: { children: ReactNode }) {
@@ -12,7 +13,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
-        {children}
+        <SyncEngineProvider>{children}</SyncEngineProvider>
         <Toaster />
       </QueryClientProvider>
     </ThemeProvider>
