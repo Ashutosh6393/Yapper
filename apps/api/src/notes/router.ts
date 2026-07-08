@@ -1,13 +1,16 @@
-import { db, label, note, noteCollaborator, noteLabel, user } from "@yapper/db";
+import { db, label, note, noteCollaborator, noteDoc, noteLabel, user } from "@yapper/db";
+import { deriveNoteMetadata } from "@yapper/editor/collab";
 import { bustNotePermissions, revokeChannel, roleChangeChannel } from "@yapper/permissions";
 import {
   createNoteArgsSchema,
   noteListQuerySchema,
+  putNoteContentBodySchema,
   setNoteLabelsBodySchema,
   shareNoteBodySchema,
 } from "@yapper/schemas";
 import { and, desc, eq, exists, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { type RequestHandler, type Response, Router } from "express";
+import * as Y from "yjs";
 import { authed } from "../authed";
 import { permCache, resolvePerm } from "../permissions";
 import { redisPublisher } from "../redis";
@@ -414,6 +417,47 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
           }
         }
       });
+      res.status(204).end();
+    }),
+  );
+
+  // PUT /api/notes/:id/content — the content lane (spec 20, ADR-0008). A private note flushes its full
+  // Yjs state here (no socket): decode the blob, upsert the same note_doc row Hocuspocus writes, derive
+  // title/preview via the SHARED helper (server-authoritative — the client never sends them), and bump
+  // meta_version so the metadata lane's pull surfaces the change. Gated on edit permission (resolvePerm),
+  // not owner-check, so REST and socket agree on who may write; a brief overlap is safe (both write
+  // CRDT-convergent full-state blobs), but the single-writer invariant is enforced client-side.
+  router.put(
+    "/:id/content",
+    authed(async (req, res, userId) => {
+      const { id } = req.params;
+      if (!id) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      const parsed = putNoteContentBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: "Invalid content", issues: parsed.error.issues });
+        return;
+      }
+      // Unknown notes resolve to `none`, so this also 403s a missing id (deny-by-default).
+      if ((await resolvePerm(id, userId)) !== "edit") {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      const state = Buffer.from(parsed.data.state, "base64");
+      await db
+        .insert(noteDoc)
+        .values({ noteId: id, state })
+        .onConflictDoUpdate({ target: noteDoc.noteId, set: { state, updatedAt: new Date() } });
+
+      const doc = new Y.Doc();
+      Y.applyUpdate(doc, new Uint8Array(state));
+      const { title, preview } = deriveNoteMetadata(doc);
+      await db
+        .update(note)
+        .set({ title, preview, updatedAt: new Date(), metaVersion: sql`${note.metaVersion} + 1` })
+        .where(eq(note.id, id));
       res.status(204).end();
     }),
   );

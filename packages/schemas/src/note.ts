@@ -66,3 +66,12 @@ export const createNoteResponseSchema = z.object({
   updatedAt: z.string(),
 });
 export type CreateNoteResponse = z.infer<typeof createNoteResponseSchema>;
+
+/** Body of `PUT /api/notes/:id/content` (spec 20, ADR-0008): the note's **full** Yjs CRDT state
+ * (`Y.encodeStateAsUpdate`) base64-encoded. The server decodes it, derives title/preview via the shared
+ * helper (the client never sends them), and upserts `note_doc`. The base64 shape is validated so a
+ * malformed body is a `400`. */
+export const putNoteContentBodySchema = z.object({
+  state: z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/, "state must be base64"),
+});
+export type PutNoteContentBody = z.infer<typeof putNoteContentBodySchema>;

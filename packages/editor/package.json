@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./derive": "./src/derive.ts"
+    "./derive": "./src/derive.ts",
+    "./collab": "./src/collab.ts"
   },
   "scripts": {
     "test": "bun test",
@@ -17,6 +18,7 @@
     "typescript": "5.9.2"
   },
   "dependencies": {
+    "@hocuspocus/transformer": "^2",
     "@tiptap/core": "^3.27.1",
     "@tiptap/extension-collaboration": "^3.27.1",
     "@tiptap/starter-kit": "^3.27.1",
