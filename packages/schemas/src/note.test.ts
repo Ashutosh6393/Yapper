@@ -6,6 +6,7 @@ import {
   noteListQuerySchema,
   noteMetadataSchema,
   noteSummarySchema,
+  putNoteContentBodySchema,
   sharedNoteSummarySchema,
 } from "./note";
 
@@ -137,5 +138,17 @@ describe("createNoteResponseSchema", () => {
       updatedAt: "2026-06-29T00:00:00.000Z",
     };
     expect(createNoteResponseSchema.parse(created)).toEqual(created);
+  });
+});
+
+describe("putNoteContentBodySchema", () => {
+  it("accepts a base64 Yjs state string", () => {
+    const body = { state: "AAECAwQF" };
+    expect(putNoteContentBodySchema.parse(body)).toEqual(body);
+  });
+
+  it("rejects a non-base64 state and a missing state", () => {
+    expect(putNoteContentBodySchema.safeParse({ state: "not base64!!" }).success).toBe(false);
+    expect(putNoteContentBodySchema.safeParse({}).success).toBe(false);
   });
 });
