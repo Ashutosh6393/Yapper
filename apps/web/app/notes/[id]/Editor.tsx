@@ -5,26 +5,41 @@ import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { buildExtensions } from "@yapper/editor";
 import { type AwarenessUser, socketServerMessageSchema } from "@yapper/schemas";
+import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
+import type { Doc as YDoc } from "yjs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/sonner";
 import { getAuthToken } from "../../../lib/auth-token";
 import { type ConnStatus, useEditorStore } from "../../../lib/stores/editor";
+import { ContentSync } from "../../../lib/sync/content-sync";
+import { db } from "../../../lib/sync/db";
+import { isSyncEngineEnabled } from "../../../lib/sync/flag";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "ws://localhost:1234";
 
-export function Editor({
-  noteId,
-  assumeEditable = false,
-  onMadePrivate,
-}: {
+/** Shared props for the note editor (either persistence path). */
+interface EditorProps {
   noteId: string;
   /** For a just-created owned note: assume `edit` and be typable immediately instead of waiting for
    * the socket `identity` message. The socket stays authoritative — a `view` identity or an auth
-   * failure downgrades the surface to read-only (goal #11). */
+   * failure downgrades the surface to read-only. */
   assumeEditable?: boolean;
   onMadePrivate?: () => void;
-}) {
+}
+
+/**
+ * The note editor. Behind the sync-engine flag it uses the single-writer **content lane** (spec 20):
+ * a private note persists via REST + y-indexeddb with no socket, a shared note via Hocuspocus, with a
+ * clean handoff when the access level changes. Flag **off** ⇒ today's always-Hocuspocus path,
+ * byte-for-byte (goal #13).
+ */
+export function Editor(props: EditorProps) {
+  if (isSyncEngineEnabled()) return <ContentLaneEditor key={props.noteId} {...props} />;
+  return <LegacyEditor {...props} />;
+}
+
+function LegacyEditor({ noteId, assumeEditable = false, onMadePrivate }: EditorProps) {
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
   const setStatus = useEditorStore((s) => s.setStatus);
   const setIdentity = useEditorStore((s) => s.setIdentity);
@@ -205,6 +220,162 @@ function ConnectionBadge({ status }: { status: ConnStatus }) {
     <div className={`inline-flex items-center gap-1.5 text-[13px] ${text[status]}`}>
       <span className={`size-2 rounded-full ${dot[status]}`} />
       {label[status]}
+    </div>
+  );
+}
+
+/**
+ * Flag-on editor (spec 20): one `Y.Doc` per note, always durable via y-indexeddb, with exactly one
+ * persistence writer chosen by the note's access level (the {@link ContentSync} controller). Private ⇒
+ * REST flush (no socket); shared ⇒ Hocuspocus. Access is observed from `db.notes` (spec 15); the
+ * component is keyed by `noteId`, so a note switch remounts with a fresh controller.
+ */
+function ContentLaneEditor({ noteId, assumeEditable = false, onMadePrivate }: EditorProps) {
+  const localNote = useLiveQuery(() => db.notes.get(noteId), [noteId]);
+  const access = localNote?.access;
+  const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
+  const setStatus = useEditorStore((s) => s.setStatus);
+  const setIdentity = useEditorStore((s) => s.setIdentity);
+  const setPermission = useEditorStore((s) => s.setPermission);
+  const markPrivate = useEditorStore((s) => s.markPrivate);
+  const reset = useEditorStore((s) => s.reset);
+
+  // Created once per mount. Its provider factory builds the same Hocuspocus provider the legacy path
+  // uses, bound to the controller's shared Y.Doc, and mirrors the provider into React state so the
+  // editor can render presence/caret (and drop them when the writer hands off to REST).
+  const [controller] = useState(
+    () =>
+      new ContentSync({
+        noteId,
+        createProvider: (ydoc) => {
+          let madePrivate = false;
+          const p = new HocuspocusProvider({
+            url: SOCKET_URL,
+            name: noteId,
+            document: ydoc,
+            token: () => getAuthToken(),
+            onStatus: ({ status }) =>
+              setStatus(status === "connected" ? "connected" : "connecting"),
+            onDisconnect: () => {
+              if (!madePrivate) setStatus("disconnected");
+            },
+            onAuthenticationFailed: () => setStatus("denied"),
+            onStateless: ({ payload }) => {
+              const parsed = socketServerMessageSchema.safeParse(JSON.parse(payload));
+              if (!parsed.success) return;
+              const msg = parsed.data;
+              if (msg.type === "identity") {
+                setIdentity(msg.user);
+                setPermission(msg.permission);
+              } else if (msg.type === "kick" && msg.reason === "note_made_private") {
+                madePrivate = true;
+                markPrivate();
+                p.disconnect();
+                onMadePrivate?.();
+              }
+            },
+          });
+          setProvider(p);
+          return {
+            destroy: () => {
+              setProvider(null);
+              p.destroy();
+            },
+          };
+        },
+      }),
+  );
+
+  useEffect(() => {
+    reset();
+    return () => controller.destroy();
+  }, [controller, reset]);
+
+  // Drive the single writer from the note's access. A private note has no socket to grant `edit`, so
+  // the owner (the only one who can see a private note) edits locally and its content is REST-flushed.
+  useEffect(() => {
+    if (!access) return;
+    controller.setAccess(access);
+    if (access === "private") {
+      setStatus("connected");
+      setPermission("edit");
+    } else if (assumeEditable) {
+      setPermission("edit");
+    }
+  }, [access, controller, assumeEditable, setStatus, setPermission]);
+
+  if (!access) return null;
+  // Remount the bound editor across a writer handoff so the CollaborationCaret extension is rebuilt.
+  return (
+    <ContentLaneBound
+      key={provider ? "shared" : "private"}
+      ydoc={controller.ydoc}
+      provider={provider}
+    />
+  );
+}
+
+function ContentLaneBound({ ydoc, provider }: { ydoc: YDoc; provider: HocuspocusProvider | null }) {
+  const status = useEditorStore((s) => s.status);
+  const identity = useEditorStore((s) => s.identity);
+  const permission = useEditorStore((s) => s.permission);
+
+  const editor = useEditor({
+    extensions: [
+      ...buildExtensions(ydoc),
+      ...(provider ? [CollaborationCaret.configure({ provider })] : []),
+    ],
+    immediatelyRender: false,
+    editable: false,
+    editorProps: {
+      attributes: {
+        class:
+          "note-prose min-h-80 rounded-lg border bg-card p-4 outline-none focus:border-primary/50",
+      },
+    },
+  });
+
+  useEffect(() => {
+    if (editor && identity) editor.commands.updateUser(identity);
+  }, [editor, identity]);
+
+  useEffect(() => {
+    editor?.setEditable(permission === "edit");
+  }, [editor, permission]);
+
+  if (status === "made_private") {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center">
+        <p className="font-semibold">Note made private by owner</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          The owner has stopped sharing this note.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        {provider ? <ConnectionBadge status={status} /> : <LocalBadge />}
+        {permission === "view" && (
+          <Badge variant="outline" className="text-amber-600">
+            View only
+          </Badge>
+        )}
+        {editor && provider && <Presence provider={provider} />}
+      </div>
+      <EditorContent editor={editor} />
+    </div>
+  );
+}
+
+/** Private-note status pill: no socket, but edits are durable locally (y-indexeddb) + REST-flushed. */
+function LocalBadge() {
+  return (
+    <div className="inline-flex items-center gap-1.5 text-[13px] text-emerald-600">
+      <span className="size-2 rounded-full bg-emerald-500" />
+      Saved locally
     </div>
   );
 }
