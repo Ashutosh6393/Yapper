@@ -70,6 +70,7 @@ vi.mock("../../lib/queries/notes", () => ({
   useTrashNote: () => ({ mutate: trashMock }),
   useRestoreNote: () => ({ mutate: restoreMock }),
   usePermanentDelete: () => ({ mutate: deleteMock }),
+  usePrefetchNote: () => vi.fn(),
   useNote: () => ({ data: { id: "new-1", title: "Untitled", access: "private", isOwner: true } }),
 }));
 const deleteLabelMock = vi.fn();
@@ -178,7 +179,8 @@ describe("DashboardPage (spec 12 — single URL-driven view)", () => {
     setParams("note=act");
     render(<DashboardPage />);
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("editor")).toBeInTheDocument();
+    // Editor is lazy-loaded now, so await its chunk resolving instead of a sync query.
+    expect(await screen.findByText("editor")).toBeInTheDocument();
   });
 
   it("closing the dialog strips note but keeps the view", async () => {

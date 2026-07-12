@@ -85,6 +85,7 @@ export async function authorizedNotes(
       labelIds: labelIdsByNote.get(r.id) ?? [],
       updatedAt: r.updatedAt.toISOString(),
       metaVersion: r.metaVersion,
+      isOwner: true,
     });
   }
   for (const r of shared) {
@@ -97,6 +98,7 @@ export async function authorizedNotes(
       labelIds: [],
       updatedAt: r.updatedAt.toISOString(),
       metaVersion: r.metaVersion,
+      isOwner: false,
     });
   }
   return view;

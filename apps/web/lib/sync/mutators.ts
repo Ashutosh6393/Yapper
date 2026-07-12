@@ -26,6 +26,7 @@ export const clientMutators: { [K in MutationName]: ClientMutatorFor<K> } = {
       labelIds: [],
       updatedAt: new Date().toISOString(),
       metaVersion: 0,
+      isOwner: true,
     });
   },
   renameNote: (draft, { id, title }) => {

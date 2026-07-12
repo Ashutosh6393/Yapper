@@ -23,6 +23,11 @@ export const noteMetaSchema = z.object({
   labelIds: z.array(z.string()),
   updatedAt: z.string(),
   metaVersion: z.number(),
+  // Whether the pulling user owns this note (vs. a note shared with them). The puller sets it per
+  // caller so the dashboard separates "My Notes" from "Shared with me" and the note dialog gates owner
+  // UI — both without a `GET /:id` round-trip. `ownerId` is never sent (privacy — mirrors `GET /:id`).
+  // Optional so this stays additive: an old base row missing it self-heals on the next pull.
+  isOwner: z.boolean().optional(),
 });
 export type NoteMeta = z.infer<typeof noteMetaSchema>;
 

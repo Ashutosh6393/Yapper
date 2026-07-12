@@ -15,6 +15,7 @@ export function NoteSection({
   variant,
   emptyText,
   onOpen,
+  onPrefetch,
   onArchive,
   onUnarchive,
   onTrash,
@@ -29,6 +30,7 @@ export function NoteSection({
   variant: NoteCardVariant;
   emptyText: string;
   onOpen: (id: string) => void;
+  onPrefetch?: (id: string) => void;
   onArchive?: (id: string) => void;
   onUnarchive?: (id: string) => void;
   onTrash?: (id: string) => void;
@@ -66,6 +68,7 @@ export function NoteSection({
                 variant={variant}
                 ownerName={ownerNames?.[note.id]}
                 onOpen={() => onOpen(note.id)}
+                onPrefetch={onPrefetch ? () => onPrefetch(note.id) : undefined}
                 onArchive={onArchive ? () => onArchive(note.id) : undefined}
                 onUnarchive={onUnarchive ? () => onUnarchive(note.id) : undefined}
                 onTrash={onTrash ? () => onTrash(note.id) : undefined}
