@@ -20,12 +20,11 @@ export type SyncRow = { key: string; value: string };
 /**
  * A materialized `db.notes` row the UI reads. `NoteMeta` (label **ids**) + resolved `labels` chips —
  * a superset of `NoteSummary`, so the dashboard cards consume it with no prop-type change. `isOwner`
- * gates owner-only UI on the note page; it stays `undefined` until the puller carries owner info on
- * base rows (spec 16). A local rendering type — NOT a wire shape (kept out of `@yapper/schemas`).
+ * (inherited from `NoteMeta`) now rides on base rows from the puller — it gates owner-only UI and
+ * separates owned from shared notes locally. A local rendering type — NOT a wire shape.
  */
 export interface LocalNote extends NoteMeta {
   labels: LabelChip[];
-  isOwner?: boolean;
 }
 
 /** A `db.labels` row — mirrors the `Label` wire shape (filled by the puller / mutators, specs 16/19). */

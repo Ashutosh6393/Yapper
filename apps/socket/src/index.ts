@@ -1,7 +1,12 @@
 import { Database } from "@hocuspocus/extension-database";
 import { type Hocuspocus, Server } from "@hocuspocus/server";
 import { verifyJwt } from "@yapper/auth";
-import { buildResolveDeps, loadNote, resolvePermission } from "@yapper/permissions";
+import {
+  buildRedisPublisher,
+  buildResolveDeps,
+  loadNote,
+  resolvePermission,
+} from "@yapper/permissions";
 import type { SocketServerMessage } from "@yapper/schemas";
 import type IORedis from "ioredis";
 import { type AuthorizeDeps, authorizeConnection, type ConnectionContext } from "./auth";
@@ -46,6 +51,9 @@ export function buildServer(options: BuildServerOptions = {}): Hocuspocus {
   // Cross-instance fanout for doc updates + awareness (and the revoke bus slice 07 reuses). Only
   // wired when REDIS_URL is set, so single-instance dev and tests run without Redis.
   const redis = buildRedisExtension();
+  // Publisher for the metadata poke fired after each derived-metadata save (spec 23); null without
+  // REDIS_URL, in which case the poke is a no-op and clients still refresh via their pull backstops.
+  const pokePublisher = buildRedisPublisher();
 
   const server = Server.configure({
     port: options.port ?? defaultPort,
@@ -87,7 +95,7 @@ export function buildServer(options: BuildServerOptions = {}): Hocuspocus {
       connectionInstance.sendStateless(JSON.stringify(message));
     },
     async onStoreDocument({ documentName, document }) {
-      await saveDerivedMetadata(documentName, document);
+      await saveDerivedMetadata(documentName, document, pokePublisher);
     },
     async onListen() {
       console.log(`[socket] hocuspocus listening on ws://localhost:${options.port ?? defaultPort}`);
@@ -105,6 +113,7 @@ export function buildServer(options: BuildServerOptions = {}): Hocuspocus {
   const originalDestroy = server.destroy.bind(server);
   server.destroy = async () => {
     await revokeSubscriber?.quit();
+    await pokePublisher?.quit();
     return originalDestroy();
   };
 

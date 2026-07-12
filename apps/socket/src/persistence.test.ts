@@ -73,3 +73,21 @@ test("saveDerivedMetadata writes title + preview derived from the doc onto the n
   expect(row?.title).toBe("My First Heading");
   expect(row?.preview).toBe("and the body text");
 });
+
+test("saveDerivedMetadata bumps metaVersion so the CVR pull surfaces the edit (spec 23)", async () => {
+  const [before] = await db.select({ v: note.metaVersion }).from(note).where(eq(note.id, noteId));
+  await saveDerivedMetadata(noteId, buildDoc("Heading", "changed body"));
+  const [after] = await db.select({ v: note.metaVersion }).from(note).where(eq(note.id, noteId));
+  expect(after?.v).toBeGreaterThan(before?.v ?? 0);
+});
+
+test("saveDerivedMetadata pokes the note's owner so open dashboards pull the edit (spec 23)", async () => {
+  const channels: string[] = [];
+  await saveDerivedMetadata(noteId, buildDoc("Heading", "body"), {
+    publish: async (channel) => {
+      channels.push(channel);
+    },
+    quit: async () => {},
+  });
+  expect(channels).toContain(`poke:user:${ownerId}`);
+});

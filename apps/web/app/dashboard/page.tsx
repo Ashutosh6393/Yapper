@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { NoteSummary, SharedNoteSummary } from "@yapper/schemas";
 import { Loader2, PenLine } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { LabelEditor } from "@/components/dashboard/label-editor";
 import { NoteDialog } from "@/components/dashboard/note-dialog";
 import { NoteSection } from "@/components/dashboard/note-section";
@@ -19,18 +19,20 @@ import {
   readActiveView,
   viewQuery,
 } from "@/lib/dashboard-view";
-import { signOut, useSession } from "../../lib/auth-client";
+import { signOut } from "../../lib/auth-client";
 import { useDeleteLabel } from "../../lib/queries/labels";
 import {
   noteKeys,
   useArchiveNote,
   useCreateNote,
   usePermanentDelete,
+  usePrefetchNote,
   useRestoreNote,
   useSharedNotes,
   useTrashNote,
   useUnarchiveNote,
 } from "../../lib/queries/notes";
+import { clearPersistedSession, usePersistedSession } from "../../lib/session";
 import * as engineActions from "../../lib/sync/actions";
 import { isSyncEngineEnabled } from "../../lib/sync/flag";
 import { useLabelList, useNoteList } from "../../lib/sync/reads";
@@ -49,11 +51,31 @@ const VIEW_META: Record<DashboardView, { label: string; empty: string }> = {
   trash: { label: "Trash", empty: "Trash is empty." },
 };
 
+/** Full-screen loading shell, shared by the auth check and the Suspense fallback below. */
+function DashboardLoading() {
+  return (
+    <main className="flex min-h-dvh items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
+      <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+      Loading…
+    </main>
+  );
+}
+
+/** `useSearchParams()` triggers a CSR bailout during static generation, so the URL-driven dashboard
+ * must sit under a Suspense boundary (Next 15 build rule — same as the login page). */
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <DashboardBody />
+    </Suspense>
+  );
+}
+
 /** Redesigned dashboard: sidebar + top bar shell rendering a SINGLE active view (My Notes /
  * Shared / Archive / Trash / label filter), driven by the URL. Per-view card actions
  * (archive/trash/restore/delete-forever); live search scoped to the active view. */
-export default function DashboardPage() {
-  const { data: session, isPending } = useSession();
+function DashboardBody() {
+  const { data: session, isPending } = usePersistedSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -75,10 +97,13 @@ export default function DashboardPage() {
   const trashNote = useTrashNote();
   const restoreNote = useRestoreNote();
   const permanentDelete = usePermanentDelete();
+  const prefetchNote = usePrefetchNote();
   const deleteLabel = useDeleteLabel();
 
   const [search, setSearch] = useState("");
-  const [dialogNoteId, setDialogNoteId] = useState<string | null>(null);
+  // The open note lives in the URL (?note=<id>) — the single source of truth for the dialog, so
+  // refresh, deep-links (share-join / bookmark), and Back/Forward all reopen/close it.
+  const dialogNoteId = searchParams.get("note");
   const [labelsNoteId, setLabelsNoteId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,15 +151,15 @@ export default function DashboardPage() {
     [sharedQuery.data],
   );
 
-  if (isPending) {
-    return (
-      <main className="flex min-h-dvh items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-        Loading…
-      </main>
-    );
-  }
+  if (isPending) return <DashboardLoading />;
   if (!session) return null;
+
+  // Open a note in the dialog by writing it to the URL, preserving the active view/label params.
+  function openNote(id: string) {
+    const params = new URLSearchParams(searchParams);
+    params.set("note", id);
+    router.push(`/dashboard?${params.toString()}`);
+  }
 
   // Instant create (goal #5): open the editor shell immediately, create in parallel, seed the
   // metadata cache from the response (no GET), then bind the real editor — editable at once.
@@ -147,7 +172,7 @@ export default function DashboardPage() {
         // rebuild), and open the editor on it. NoteDialog reads it through the flag-gated Dexie path.
         const id = engineActions.createNote();
         setCreatedId(id);
-        setDialogNoteId(id);
+        openNote(id);
         return;
       }
       const note = await createNote.mutateAsync();
@@ -161,7 +186,7 @@ export default function DashboardPage() {
         isOwner: true,
       });
       setCreatedId(note.id);
-      setDialogNoteId(note.id);
+      openNote(note.id);
     } catch {
       toast.error("Couldn't create note");
     } finally {
@@ -170,8 +195,11 @@ export default function DashboardPage() {
   }
 
   function closeDialog() {
-    setDialogNoteId(null);
     setCreatedId(null);
+    const params = new URLSearchParams(searchParams);
+    params.delete("note");
+    const qs = params.toString();
+    router.push(qs ? `/dashboard?${qs}` : "/dashboard");
   }
 
   function navigate(next: DashboardView) {
@@ -223,6 +251,7 @@ export default function DashboardPage() {
           email={session.user.email}
           onMenuClick={() => setSidebarOpen(true)}
           onSignOut={async () => {
+            clearPersistedSession();
             await signOut();
             router.replace("/login");
           }}
@@ -255,7 +284,10 @@ export default function DashboardPage() {
             }
             ownerNames={isShared ? ownerNames : undefined}
             emptyText={VIEW_META[view].empty}
-            onOpen={setDialogNoteId}
+            onOpen={openNote}
+            // Only warms the RQ metadata cache — pointless when the engine is on (the dialog reads the
+            // note locally), so prefetch only on the flag-off path.
+            onPrefetch={syncOn ? undefined : prefetchNote}
             onArchive={(id) => (syncOn ? engineActions.archiveNote(id) : archiveNote.mutate(id))}
             onUnarchive={(id) =>
               syncOn ? engineActions.unarchiveNote(id) : unarchiveNote.mutate(id)

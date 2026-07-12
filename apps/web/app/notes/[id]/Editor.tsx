@@ -2,19 +2,23 @@
 
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
+import { Placeholder } from "@tiptap/extension-placeholder";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { buildExtensions } from "@yapper/editor";
+import { deriveNoteMetadata } from "@yapper/editor/collab";
 import { type AwarenessUser, socketServerMessageSchema } from "@yapper/schemas";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Doc as YDoc } from "yjs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/sonner";
+import { EditorToolbar } from "../../../components/dashboard/editor-toolbar";
 import { getAuthToken } from "../../../lib/auth-token";
 import { type ConnStatus, useEditorStore } from "../../../lib/stores/editor";
 import { ContentSync } from "../../../lib/sync/content-sync";
 import { db } from "../../../lib/sync/db";
 import { isSyncEngineEnabled } from "../../../lib/sync/flag";
+import { pull } from "../../../lib/sync/pull";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "ws://localhost:1234";
 
@@ -103,16 +107,37 @@ function LegacyEditor({ noteId, assumeEditable = false, onMadePrivate }: EditorP
   ]);
 
   if (!provider) return null;
-  return <BoundEditor key={noteId} provider={provider} />;
+  return <NoteEditorSurface key={noteId} ydoc={provider.document} provider={provider} />;
 }
 
-function BoundEditor({ provider }: { provider: HocuspocusProvider }) {
+/**
+ * The rendered editor: toolbar (edit-permission only) + status bar + TipTap content. Shared by both
+ * persistence paths — `provider` is the Hocuspocus connection for a shared note, or `null` for a
+ * private note that persists locally (content lane), which swaps the connection badge for a local one
+ * and drops presence/caret.
+ */
+function NoteEditorSurface({
+  ydoc,
+  provider,
+}: {
+  ydoc: YDoc;
+  provider: HocuspocusProvider | null;
+}) {
   const status = useEditorStore((s) => s.status);
   const identity = useEditorStore((s) => s.identity);
   const permission = useEditorStore((s) => s.permission);
 
   const editor = useEditor({
-    extensions: [...buildExtensions(provider.document), CollaborationCaret.configure({ provider })],
+    extensions: [
+      ...buildExtensions(ydoc),
+      ...(provider ? [CollaborationCaret.configure({ provider })] : []),
+      // The note's title is its first line: show an "Untitled" placeholder there while it's empty.
+      Placeholder.configure({
+        includeChildren: false,
+        showOnlyWhenEditable: false,
+        placeholder: ({ editor: e, node }) => (e.state.doc.firstChild === node ? "Untitled" : ""),
+      }),
+    ],
     immediatelyRender: false,
     editable: false,
     editorProps: {
@@ -131,29 +156,31 @@ function BoundEditor({ provider }: { provider: HocuspocusProvider }) {
     editor?.setEditable(permission === "edit");
   }, [editor, permission]);
 
-  if (status === "made_private") {
-    return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center">
-        <p className="font-semibold">Note made private by owner</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The owner has stopped sharing this note.
-        </p>
-      </div>
-    );
-  }
+  if (status === "made_private") return <MadePrivateNotice />;
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <ConnectionBadge status={status} />
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        {provider ? <ConnectionBadge status={status} /> : <LocalBadge />}
         {permission === "view" && (
           <Badge variant="outline" className="text-amber-600">
             View only
           </Badge>
         )}
-        {editor && <Presence provider={provider} />}
+        {editor && provider ? <Presence provider={provider} /> : null}
       </div>
+      {permission === "edit" && editor ? <EditorToolbar editor={editor} /> : null}
       <EditorContent editor={editor} />
+    </div>
+  );
+}
+
+/** Shown to a collaborator after the owner rotates the note private and disconnects them (slice 07). */
+function MadePrivateNotice() {
+  return (
+    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center">
+      <p className="font-semibold">Note made private by owner</p>
+      <p className="mt-1 text-sm text-muted-foreground">The owner has stopped sharing this note.</p>
     </div>
   );
 }
@@ -233,68 +260,85 @@ function ConnectionBadge({ status }: { status: ConnStatus }) {
 function ContentLaneEditor({ noteId, assumeEditable = false, onMadePrivate }: EditorProps) {
   const localNote = useLiveQuery(() => db.notes.get(noteId), [noteId]);
   const access = localNote?.access;
+  const [controller, setController] = useState<ContentSync | null>(null);
   const [provider, setProvider] = useState<HocuspocusProvider | null>(null);
   const setStatus = useEditorStore((s) => s.setStatus);
   const setIdentity = useEditorStore((s) => s.setIdentity);
   const setPermission = useEditorStore((s) => s.setPermission);
   const markPrivate = useEditorStore((s) => s.markPrivate);
   const reset = useEditorStore((s) => s.reset);
+  // onMadePrivate can change identity per render (the dashboard passes an unmemoized close handler);
+  // read it through a ref so the controller effect stays keyed on noteId and never rebuilds per render.
+  const onMadePrivateRef = useRef(onMadePrivate);
+  onMadePrivateRef.current = onMadePrivate;
 
-  // Created once per mount. Its provider factory builds the same Hocuspocus provider the legacy path
-  // uses, bound to the controller's shared Y.Doc, and mirrors the provider into React state so the
-  // editor can render presence/caret (and drop them when the writer hands off to REST).
-  const [controller] = useState(
-    () =>
-      new ContentSync({
-        noteId,
-        createProvider: (ydoc) => {
-          let madePrivate = false;
-          const p = new HocuspocusProvider({
-            url: SOCKET_URL,
-            name: noteId,
-            document: ydoc,
-            token: () => getAuthToken(),
-            onStatus: ({ status }) =>
-              setStatus(status === "connected" ? "connected" : "connecting"),
-            onDisconnect: () => {
-              if (!madePrivate) setStatus("disconnected");
-            },
-            onAuthenticationFailed: () => setStatus("denied"),
-            onStateless: ({ payload }) => {
-              const parsed = socketServerMessageSchema.safeParse(JSON.parse(payload));
-              if (!parsed.success) return;
-              const msg = parsed.data;
-              if (msg.type === "identity") {
-                setIdentity(msg.user);
-                setPermission(msg.permission);
-              } else if (msg.type === "kick" && msg.reason === "note_made_private") {
-                madePrivate = true;
-                markPrivate();
-                p.disconnect();
-                onMadePrivate?.();
-              }
-            },
-          });
-          setProvider(p);
-          return {
-            destroy: () => {
-              setProvider(null);
-              p.destroy();
-            },
-          };
-        },
-      }),
-  );
-
+  // Own the controller's FULL lifecycle here (not useState) so a remount — including React Strict
+  // Mode's dev mount→cleanup→mount — destroys and rebuilds it cleanly. A useState-created controller
+  // would be torn down by the first cleanup and then reused *dead*: the editor would bind a destroyed
+  // Y.Doc whose `update` listener is gone, so edits never persist or flush (empty server content).
   useEffect(() => {
     reset();
-    return () => controller.destroy();
-  }, [controller, reset]);
+    const c = new ContentSync({
+      noteId,
+      // Instant dashboard title/preview: derive them client-side (the SAME helper the server uses, so
+      // the value matches what the flush will persist — ADR-001) and patch the materialized note the
+      // moment we flush, so the card updates without waiting on the server round-trip.
+      onLocalDerive: (ydoc) => {
+        const { title, preview } = deriveNoteMetadata(ydoc);
+        void db.notes.update(noteId, { title, preview });
+      },
+      // After the flush lands, the server holds the authoritative title/preview + a bumped metaVersion;
+      // pull reconciles it into db.base so the derived value above survives the next rebuild (and other
+      // tabs/devices converge). No-op-safe if the SSE poke already beat us here.
+      onFlushed: () => void pull(),
+      createProvider: (ydoc) => {
+        let madePrivate = false;
+        const p = new HocuspocusProvider({
+          url: SOCKET_URL,
+          name: noteId,
+          document: ydoc,
+          token: () => getAuthToken(),
+          onStatus: ({ status }) => setStatus(status === "connected" ? "connected" : "connecting"),
+          onDisconnect: () => {
+            if (!madePrivate) setStatus("disconnected");
+          },
+          onAuthenticationFailed: () => setStatus("denied"),
+          onStateless: ({ payload }) => {
+            const parsed = socketServerMessageSchema.safeParse(JSON.parse(payload));
+            if (!parsed.success) return;
+            const msg = parsed.data;
+            if (msg.type === "identity") {
+              setIdentity(msg.user);
+              setPermission(msg.permission);
+            } else if (msg.type === "kick" && msg.reason === "note_made_private") {
+              madePrivate = true;
+              markPrivate();
+              p.disconnect();
+              onMadePrivateRef.current?.();
+            }
+          },
+        });
+        setProvider(p);
+        return {
+          destroy: () => {
+            setProvider(null);
+            p.destroy();
+          },
+        };
+      },
+    });
+    setController(c);
+    return () => {
+      c.destroy();
+      setController(null);
+      setProvider(null);
+    };
+  }, [noteId, reset, setStatus, setIdentity, setPermission, markPrivate]);
 
   // Drive the single writer from the note's access. A private note has no socket to grant `edit`, so
   // the owner (the only one who can see a private note) edits locally and its content is REST-flushed.
   useEffect(() => {
-    if (!access) return;
+    if (!controller || !access) return;
     controller.setAccess(access);
     if (access === "private") {
       setStatus("connected");
@@ -304,69 +348,16 @@ function ContentLaneEditor({ noteId, assumeEditable = false, onMadePrivate }: Ed
     }
   }, [access, controller, assumeEditable, setStatus, setPermission]);
 
-  if (!access) return null;
-  // Remount the bound editor across a writer handoff so the CollaborationCaret extension is rebuilt.
+  if (!controller || !access) return null;
+  // Key by the live doc identity + writer mode so TipTap rebuilds against a fresh Y.Doc after a
+  // remount (new controller ⇒ new doc.guid) and across a private⇄shared handoff (CollaborationCaret
+  // must be rebuilt). A stale key would leave the editor bound to a torn-down doc.
   return (
-    <ContentLaneBound
-      key={provider ? "shared" : "private"}
+    <NoteEditorSurface
+      key={`${provider ? "shared" : "private"}:${controller.ydoc.guid}`}
       ydoc={controller.ydoc}
       provider={provider}
     />
-  );
-}
-
-function ContentLaneBound({ ydoc, provider }: { ydoc: YDoc; provider: HocuspocusProvider | null }) {
-  const status = useEditorStore((s) => s.status);
-  const identity = useEditorStore((s) => s.identity);
-  const permission = useEditorStore((s) => s.permission);
-
-  const editor = useEditor({
-    extensions: [
-      ...buildExtensions(ydoc),
-      ...(provider ? [CollaborationCaret.configure({ provider })] : []),
-    ],
-    immediatelyRender: false,
-    editable: false,
-    editorProps: {
-      attributes: {
-        class:
-          "note-prose min-h-80 rounded-lg border bg-card p-4 outline-none focus:border-primary/50",
-      },
-    },
-  });
-
-  useEffect(() => {
-    if (editor && identity) editor.commands.updateUser(identity);
-  }, [editor, identity]);
-
-  useEffect(() => {
-    editor?.setEditable(permission === "edit");
-  }, [editor, permission]);
-
-  if (status === "made_private") {
-    return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center">
-        <p className="font-semibold">Note made private by owner</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The owner has stopped sharing this note.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        {provider ? <ConnectionBadge status={status} /> : <LocalBadge />}
-        {permission === "view" && (
-          <Badge variant="outline" className="text-amber-600">
-            View only
-          </Badge>
-        )}
-        {editor && provider && <Presence provider={provider} />}
-      </div>
-      <EditorContent editor={editor} />
-    </div>
   );
 }
 

@@ -54,6 +54,20 @@ export function useNote(id: string) {
   });
 }
 
+/**
+ * Returns a fn that warms a note's metadata cache — call it on card hover/focus so the dialog's owner
+ * controls render from cache instead of a fresh round-trip on open. Respects the global `staleTime`, so
+ * a warm entry is a no-op. (Superseded once the dialog reads ownership locally — spec 16.)
+ */
+export function usePrefetchNote() {
+  const qc = useQueryClient();
+  return (id: string) =>
+    qc.prefetchQuery({
+      queryKey: noteKeys.detail(id),
+      queryFn: async () => noteMetadataSchema.parse(await apiFetch(`/api/notes/${id}`)),
+    });
+}
+
 export function useCreateNote() {
   const qc = useQueryClient();
   return useMutation({

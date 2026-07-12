@@ -16,7 +16,10 @@ import { isSyncEngineEnabled } from "./flag";
  * adapters below pick Dexie vs the TanStack Query path once, on the stable flag.
  */
 
-/** Owned lifecycle view (`active` | `archived` | `trashed`), optionally filtered to one label. */
+/** Owned lifecycle view (`active` | `archived` | `trashed`), optionally filtered to one label.
+ * Collaborator notes also live in `db.notes` (so the editor can read their access locally), so exclude
+ * them here — `isOwner === false` is a note shared *with* the user; `!== false` keeps owned + any
+ * pre-`isOwner` row that hasn't been re-pulled yet (self-heals rather than briefly hiding owned notes). */
 export function useLocalNotes(filter: NoteFilter, labelId?: string | null) {
   return useLiveQuery(() => {
     if (labelId) {
@@ -24,10 +27,14 @@ export function useLocalNotes(filter: NoteFilter, labelId?: string | null) {
       return db.notes
         .where("labelIds")
         .equals(labelId)
-        .filter((n) => n.lifecycle === "active")
+        .filter((n) => n.lifecycle === "active" && n.isOwner !== false)
         .toArray();
     }
-    return db.notes.where("lifecycle").equals(filter).toArray();
+    return db.notes
+      .where("lifecycle")
+      .equals(filter)
+      .filter((n) => n.isOwner !== false)
+      .toArray();
   }, [filter, labelId]);
 }
 

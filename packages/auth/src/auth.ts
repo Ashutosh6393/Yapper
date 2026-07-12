@@ -24,6 +24,12 @@ export const auth = betterAuth({
   advanced: {
     database: { generateId: false },
   },
+  // Serve `getSession` from a short-lived signed cookie instead of a DB hit, so the web client's
+  // session check (blocking every page load) resolves fast. maxAge bounds how long a revoked session
+  // stays valid from cache before the next DB refresh.
+  session: {
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
+  },
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",

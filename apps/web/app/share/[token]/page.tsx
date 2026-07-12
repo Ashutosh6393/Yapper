@@ -9,7 +9,8 @@ import { useJoinNote } from "../../../lib/queries/share";
 /**
  * Capability-link landing page (slice 06). Opening `/share/:token`:
  * - logged out → bounce to `/login?returnTo=/share/:token`, then resume here after OAuth;
- * - logged in → POST join (materializes an active collaborator) → redirect into `/notes/:id`.
+ * - logged in → POST join (materializes an active collaborator) → redirect to the dashboard, which
+ *   opens the note in a dialog (`/dashboard?note=:id`) rather than a standalone page.
  * A 404 from join means the link is invalid or the note was made private.
  */
 export default function SharePage() {
@@ -33,7 +34,7 @@ export default function SharePage() {
 
     joinNote
       .mutateAsync(token)
-      .then(({ noteId }) => router.replace(`/notes/${noteId}`))
+      .then(({ noteId }) => router.replace(`/dashboard?note=${noteId}`))
       .catch((err) => {
         setError(
           err instanceof ApiError && err.status === 404

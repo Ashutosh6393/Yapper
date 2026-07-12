@@ -62,7 +62,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   const syncDeps: PostCommitDeps = options.syncDeps ?? { permCache, publisher: redisPublisher };
 
-  app.use("/api/notes", notesRouter(requireAuth(options.resolveSession)));
+  app.use("/api/notes", notesRouter(requireAuth(options.resolveSession), syncDeps.publisher));
   app.use("/api/labels", labelsRouter(requireAuth(options.resolveSession)));
   app.use("/api/share", shareRouter(requireAuth(options.resolveSession)));
   app.use("/api/sync", syncRouter(requireAuth(options.resolveSession), syncDeps));

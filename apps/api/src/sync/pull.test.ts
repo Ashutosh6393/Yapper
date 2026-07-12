@@ -103,6 +103,23 @@ test("delta: a newly inserted owned note appears in puts (TDD #3)", async () => 
   expect(second.body.puts.map((p: { id: string }) => p.id)).toEqual([fresh.id]);
 }, 30_000);
 
+test("puts carry isOwner: true for the caller's own notes, false for a note shared with them (spec 16)", async () => {
+  const owner = await makeUser("own-flag");
+  const collab = await makeUser("own-collab");
+  const n = await makeNote(owner, {
+    access: "edit",
+    shareToken: `pull-own-${crypto.randomUUID()}`,
+    metaVersion: 1,
+  });
+  await db.insert(noteCollaborator).values({ noteId: n.id, userId: collab, status: "active" });
+
+  const ownerPull = await pull(owner, newGroup(), null);
+  expect(ownerPull.body.puts.find((p: { id: string }) => p.id === n.id)?.isOwner).toBe(true);
+
+  const collabPull = await pull(collab, newGroup(), null);
+  expect(collabPull.body.puts.find((p: { id: string }) => p.id === n.id)?.isOwner).toBe(false);
+}, 30_000);
+
 test("removal make-private: collaborator gets the note in dels; owner does not (goal #7, TDD #4)", async () => {
   const owner = await makeUser("mp-owner");
   const collab = await makeUser("mp-collab");

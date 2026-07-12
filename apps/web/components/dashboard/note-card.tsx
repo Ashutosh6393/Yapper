@@ -39,6 +39,7 @@ export function NoteCard({
   ownerName,
   variant = "my",
   onOpen,
+  onPrefetch,
   onArchive,
   onUnarchive,
   onTrash,
@@ -50,6 +51,7 @@ export function NoteCard({
   ownerName?: string;
   variant?: NoteCardVariant;
   onOpen: () => void;
+  onPrefetch?: () => void;
   onArchive?: () => void;
   onUnarchive?: () => void;
   onTrash?: () => void;
@@ -97,6 +99,8 @@ export function NoteCard({
         <button
           type="button"
           onClick={onOpen}
+          onPointerEnter={onPrefetch}
+          onFocus={onPrefetch}
           className="block w-full cursor-pointer rounded-xl p-[18px] text-left"
         >
           {body}
