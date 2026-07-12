@@ -22,13 +22,6 @@ import { rejectToastCopy } from "./reject-copy";
 let inFlight = false;
 let pendingNudge = false;
 
-/** Outcome-handler seam (spec 19): fires the parsed response after settled processing (used by tests). */
-type OutcomeHandler = (outcome: PushResponse) => void;
-let outcomeHandler: OutcomeHandler | null = null;
-export function setPushOutcomeHandler(handler: OutcomeHandler | null): void {
-  outcomeHandler = handler;
-}
-
 /** Fire-and-forget nudge (used by `enqueue` and the poke/pull loop). Swallows push rejections. */
 export function schedulePush(): void {
   void push();
@@ -89,6 +82,4 @@ async function pushOnce(): Promise<void> {
       if (name) toast.error(rejectToastCopy(name, reason));
     }
   }
-  // `result` is a PushResponse on the settled branch; narrow for the typed seam without an assertion.
-  if (!(result instanceof PushTransportError)) outcomeHandler?.(result);
 }

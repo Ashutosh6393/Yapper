@@ -1,0 +1,323 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-12T00:00:00.000Z",
+  "title": "Design System: Yapper",
+  "extensions": {
+    "colorMeta": {
+      "brand": {
+        "role": "primary",
+        "displayName": "Deep Indigo",
+        "canonical": "oklch(0.47 0.15 275)",
+        "tonalRamp": [
+          "oklch(0.20 0.06 275)",
+          "oklch(0.28 0.10 275)",
+          "oklch(0.36 0.13 275)",
+          "oklch(0.47 0.15 275)",
+          "oklch(0.58 0.15 277)",
+          "oklch(0.70 0.13 280)",
+          "oklch(0.82 0.09 283)",
+          "oklch(0.93 0.04 285)"
+        ]
+      },
+      "iris": {
+        "role": "primary",
+        "displayName": "Iris",
+        "canonical": "oklch(0.7 0.13 280)",
+        "tonalRamp": [
+          "oklch(0.30 0.10 278)",
+          "oklch(0.40 0.13 278)",
+          "oklch(0.50 0.15 278)",
+          "oklch(0.60 0.15 279)",
+          "oklch(0.70 0.13 280)",
+          "oklch(0.80 0.10 282)",
+          "oklch(0.88 0.06 284)",
+          "oklch(0.955 0.02 285)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(0.17 0.015 275)",
+        "tonalRamp": [
+          "oklch(0.17 0.015 275)",
+          "oklch(0.21 0.018 275)",
+          "oklch(0.25 0.02 275)",
+          "oklch(0.35 0.015 275)",
+          "oklch(0.50 0.012 275)",
+          "oklch(0.66 0.01 275)",
+          "oklch(0.82 0.008 275)",
+          "oklch(0.96 0.004 275)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "oklch(0.99 0.002 275)",
+        "tonalRamp": [
+          "oklch(0.27 0.012 275)",
+          "oklch(0.38 0.01 275)",
+          "oklch(0.50 0.008 275)",
+          "oklch(0.64 0.007 275)",
+          "oklch(0.78 0.006 275)",
+          "oklch(0.90 0.006 275)",
+          "oklch(0.99 0.002 275)",
+          "oklch(1 0 0)"
+        ]
+      },
+      "presence-blue": {
+        "role": "tertiary",
+        "displayName": "Presence Blue",
+        "canonical": "#4ea8ff",
+        "tonalRamp": [
+          "#0a2a4d",
+          "#0f3d70",
+          "#1657a0",
+          "#2578cc",
+          "#4ea8ff",
+          "#7bc0ff",
+          "#a9d5ff",
+          "#d6eaff"
+        ]
+      },
+      "presence-orange": {
+        "role": "tertiary",
+        "displayName": "Presence Orange",
+        "canonical": "#ff7b4e",
+        "tonalRamp": [
+          "#4d1e0f",
+          "#702c16",
+          "#a03f1f",
+          "#cc562b",
+          "#ff7b4e",
+          "#ff9d7a",
+          "#ffbea6",
+          "#ffdfd2"
+        ]
+      },
+      "presence-green": {
+        "role": "tertiary",
+        "displayName": "Presence Green",
+        "canonical": "#22d3a5",
+        "tonalRamp": [
+          "#0a4034",
+          "#0f5c49",
+          "#158063",
+          "#1ba884",
+          "#22d3a5",
+          "#5ce0bf",
+          "#96ecd9",
+          "#d0f7ee"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Danger",
+        "canonical": "#f87070",
+        "tonalRamp": [
+          "#4d1616",
+          "#701f1f",
+          "#a02c2c",
+          "#cc4040",
+          "#f87070",
+          "#fa9494",
+          "#fbb8b8",
+          "#fddcdc"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display — Bricolage Grotesque",
+        "purpose": "Landing hero + section headlines and the wordmark. The only fluid clamp() type. Never body."
+      },
+      "headline": {
+        "displayName": "Headline — Bricolage Grotesque",
+        "purpose": "App page titles and TipTap h1. Fixed rem — never scales fluidly."
+      },
+      "title": {
+        "displayName": "Title — Hanken Grotesk",
+        "purpose": "Card titles, dialog headers, note titles in lists."
+      },
+      "body": {
+        "displayName": "Body — Hanken Grotesk",
+        "purpose": "Default UI and prose text; prose caps 65–75ch."
+      },
+      "label": {
+        "displayName": "Label — Hanken Grotesk",
+        "purpose": "Deliberate uppercase eyebrows/kickers — not stamped above every section."
+      }
+    },
+    "shadows": [
+      {
+        "name": "hairline",
+        "value": "0 1px 2px oklch(0 0 0 / 0.05)",
+        "purpose": "App inputs and outline buttons (shadow-xs)."
+      },
+      {
+        "name": "resting-card",
+        "value": "0 1px 3px oklch(0 0 0 / 0.06)",
+        "purpose": "App cards at rest (shadow-sm). Maximum lift in-app."
+      },
+      {
+        "name": "landing-card",
+        "value": "0 1px 2px oklch(0.2 0.02 275 / 0.04), 0 10px 30px oklch(0.2 0.02 275 / 0.05)",
+        "purpose": "Landing light cards; hover warms toward indigo and lifts."
+      },
+      {
+        "name": "landing-panel-dark",
+        "value": "0 1px 0 oklch(1 0 0 / 0.06) inset, 0 30px 80px oklch(0.1 0.02 275 / 0.6)",
+        "purpose": "Landing dark product mockups: inset top-highlight + deep drop."
+      },
+      {
+        "name": "ambient-glow",
+        "value": "radial-gradient(ellipse 65% 70% at 80% 50%, oklch(0.55 0.16 278 / 0.2), transparent 60%)",
+        "purpose": "Landing-only atmosphere/aurora. Never a component shadow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-reveal",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Landing scroll reveals (ease-out-expo): fade + lift + un-blur. Content visible by default; JS opts in."
+      },
+      {
+        "name": "ease-emphasis",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Landing button/press and hover-lift micro-interactions."
+      },
+      {
+        "name": "hero-rise",
+        "value": "0.7s cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Staggered hero entrance (eyebrow → headline lines → subcopy → CTAs)."
+      },
+      {
+        "name": "aurora",
+        "value": "18s ease-in-out infinite",
+        "purpose": "Slow low-amplitude drift on the hero glow. Reduced-motion: none."
+      },
+      {
+        "name": "state-transition",
+        "value": "150ms ease",
+        "purpose": "In-app state changes (hover, focus, permission toggle). Quick and quiet."
+      },
+      {
+        "name": "caret-blink",
+        "value": "1.1s step-end infinite",
+        "purpose": "Live-cursor caret blink. Honors prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The note-taking primary action. Deep indigo on light.",
+      "html": "<button class=\"ds-btn-primary\">New note</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px; border: none; border-radius: 8px; background: oklch(0.47 0.15 275); color: #fff; font: 600 14px/1 'Hanken Grotesk', -apple-system, sans-serif; cursor: pointer; transition: background 150ms ease, transform 150ms ease; } .ds-btn-primary:hover { background: oklch(0.42 0.15 275); transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.47 0.15 275 / 0.5); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Quiet default for secondary actions. Hairline border, fills accent on hover.",
+      "html": "<button class=\"ds-btn-outline\">Share</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px; border: 1px solid oklch(0.9 0.006 275); border-radius: 8px; background: oklch(0.99 0.002 275); color: oklch(0.27 0.012 275); box-shadow: 0 1px 2px oklch(0 0 0 / 0.05); font: 500 14px/1 'Hanken Grotesk', -apple-system, sans-serif; cursor: pointer; transition: background 150ms ease, border-color 150ms ease; } .ds-btn-outline:hover { background: oklch(0.955 0.02 285); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.47 0.15 275 / 0.5); }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Delete and the decisive 'make private' action only.",
+      "html": "<button class=\"ds-btn-destructive\">Make private</button>",
+      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px; border: none; border-radius: 8px; background: #f87070; color: #fff; font: 600 14px/1 'Hanken Grotesk', -apple-system, sans-serif; cursor: pointer; transition: background 150ms ease; } .ds-btn-destructive:hover { background: #f45a5a; } .ds-btn-destructive:focus-visible { outline: none; box-shadow: 0 0 0 3px #f8707080; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "36px field, hairline border, ring halo on focus. No glow, no color flood.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Note title\" />",
+      "css": ".ds-input { height: 36px; width: 100%; padding: 4px 12px; border: 1px solid oklch(0.9 0.006 275); border-radius: 8px; background: #fff; color: oklch(0.27 0.012 275); box-shadow: 0 1px 2px oklch(0 0 0 / 0.05); font: 400 14px/1.4 'Hanken Grotesk', -apple-system, sans-serif; transition: border-color 150ms ease, box-shadow 150ms ease; } .ds-input::placeholder { color: oklch(0.47 0.008 275); } .ds-input:focus-visible { outline: none; border-color: oklch(0.47 0.15 275); box-shadow: 0 0 0 3px oklch(0.47 0.15 275 / 0.5); }"
+    },
+    {
+      "name": "Landing Feature Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Landing feature tile: layered shadow, indigo icon chip that fills on hover, lift on hover.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-icon\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\"><circle cx=\"10\" cy=\"7.5\" r=\"3.5\" stroke-width=\"1.7\"/><path d=\"M3 18c0-3.866 3.134-7 7-7s7 3.134 7 7\" stroke-width=\"1.7\" stroke-linecap=\"round\"/></svg></div><div class=\"ds-card-title\">Real identities only</div><div class=\"ds-card-body\">Google or GitHub login, every time. Every cursor is a real, tracked person.</div></div>",
+      "css": ".ds-card { display: block; padding: 28px; border: 1px solid oklch(0.9 0.006 275); border-radius: 18px; background: #fff; box-shadow: 0 1px 2px oklch(0.2 0.02 275 / 0.04), 0 10px 30px oklch(0.2 0.02 275 / 0.05); font-family: 'Hanken Grotesk', -apple-system, sans-serif; transition: transform 260ms cubic-bezier(0.22,1,0.36,1), border-color 260ms, box-shadow 260ms; } .ds-card:hover { transform: translateY(-4px); border-color: oklch(0.47 0.15 275 / 0.35); box-shadow: 0 2px 6px oklch(0.47 0.15 275 / 0.08), 0 22px 50px oklch(0.47 0.15 275 / 0.14); } .ds-card-icon { display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; margin-bottom: 18px; border-radius: 13px; background: oklch(0.47 0.15 275 / 0.1); color: oklch(0.47 0.15 275); transition: background 200ms, color 200ms; } .ds-card:hover .ds-card-icon { background: oklch(0.47 0.15 275); color: #fff; } .ds-card-title { margin-bottom: 8px; font: 700 19px/1.2 'Bricolage Grotesque', sans-serif; letter-spacing: -0.3px; color: oklch(0.27 0.012 275); } .ds-card-body { font: 400 14px/1.6 'Hanken Grotesk', sans-serif; color: oklch(0.47 0.008 275); }"
+    },
+    {
+      "name": "Live Presence Cursor",
+      "kind": "custom",
+      "refersTo": "presence",
+      "description": "The signature component: a caret in the collaborator's stable presence color, always with a name label — never color alone.",
+      "html": "<span class=\"ds-presence\"><span class=\"ds-presence-caret\"></span><span class=\"ds-presence-name\">Kira Patel</span></span>",
+      "css": ".ds-presence { position: relative; display: inline-flex; align-items: flex-end; } .ds-presence-caret { width: 2px; height: 16px; border-radius: 1px; background: #4ea8ff; animation: ds-caret-blink 1.1s step-end infinite; } .ds-presence-name { margin-left: 1px; padding: 1.5px 5px; border-radius: 3px 3px 3px 0; background: #4ea8ff; color: #fff; font: 700 9px/1.6 'Hanken Grotesk', sans-serif; white-space: nowrap; } @keyframes ds-caret-blink { 0%,44%{opacity:1} 50%,94%{opacity:0} 100%{opacity:1} } @media (prefers-reduced-motion: reduce) { .ds-presence-caret { animation: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Trusted Desk",
+    "overview": "Yapper is a dependable, grown-up place to write. The near-monochrome cool indigo-tinted surface is deliberately quiet so the two things that matter can be loud: the words you're writing and who's in the room with you. A single deep brand indigo and its brighter iris sibling are the only saturated voice, spent sparingly on identity and primary action. It is not a faceless link-trust tool, not a heavy enterprise console, not a generic AI-SaaS template, and not toy-cute. The app is flat by tonal layering; the always-dark marketing landing earns layered shadow, ambient glow, and orchestrated motion, in the same palette, type, and voice.",
+    "keyCharacteristics": [
+      "Cool indigo-tinted neutrals carry 90%+ of every surface; brand/iris indigo is rationed.",
+      "Two distinctive families: Bricolage Grotesque (display) + Hanken Grotesk (text) — not the system-font reflex.",
+      "App is flat by tonal layering; the landing earns layered shadow + glow + orchestrated motion.",
+      "Identity is always legible: real names, stable per-user colors, never color alone.",
+      "Control is a switch, never a control panel."
+    ],
+    "rules": [
+      {
+        "name": "The Cool-Neutral Rule",
+        "body": "Neutrals carry a faint cool indigo tint (chroma ≤0.02 toward hue 275–285), never a warm cream/sand. A warm-tinted body is the AI-SaaS tell this system rejects.",
+        "section": "colors"
+      },
+      {
+        "name": "The Presence-Only Rule",
+        "body": "Blue, orange, and green belong to live collaborators. The brand indigo is kept off the presence-blue hue so the two never read as the same thing.",
+        "section": "colors"
+      },
+      {
+        "name": "The Display-For-Display Rule",
+        "body": "Bricolage Grotesque for headings and the wordmark; Hanken Grotesk for body, labels, and data. Don't mix roles.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two-Register Rule",
+        "body": "Flat, state-only motion in the app; layered depth and orchestrated motion on the landing. Don't leak one into the other.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Enhance-Don't-Gate Rule",
+        "body": "Reveal animations enhance content visible by default; the hidden state is applied by JS only when motion is allowed.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep neutrals cool (a whisper of indigo, chroma ≤0.02 toward hue ~280). Warmth is not this brand.",
+      "Do ration brand/iris indigo — primary action and identity only. Most of every screen is neutral.",
+      "Do set headings in Bricolage Grotesque and text in Hanken Grotesk.",
+      "Do attach a real name label to every presence color; presence must survive color-blindness and grayscale.",
+      "Do convey depth by tonal layering in-app; reserve layered shadow + glow for the landing.",
+      "Do give every interactive element a visible focus-visible ring and a prefers-reduced-motion fallback.",
+      "Do express access control as one switch (private / view / edit) plus one decisive 'make private.'"
+    ],
+    "donts": [
+      "Don't use a warm cream/sand/beige background — the generic AI-SaaS tell this system rejects.",
+      "Don't render anonymous cursors, or use a presence color for anything that isn't a live person; don't let the brand indigo drift onto the presence-blue hue.",
+      "Don't fall back to the system-font stack or the Inter/DM-Sans/Space-Grotesk reflex.",
+      "Don't build a permission matrix, role tree, or IT-console access panel.",
+      "Don't go toy-cute: no bounce/elastic easing, no emoji-as-UI, no oversized radii.",
+      "Don't stamp an uppercase tracked eyebrow above every section, or lay out identical icon-card grids.",
+      "Don't use border-left/border-right >1px as a colored accent stripe, or gradient-clipped text.",
+      "Don't leak landing choreography into app UI, or let a reveal gate content visibility on JS."
+    ]
+  }
+}

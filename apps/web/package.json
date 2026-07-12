@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --port 3000",
-    "build": "next build",
+    "dev": "NODE_OPTIONS=--max-old-space-size=4096 next dev --port 3000",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
     "start": "next start --port 3000",
     "test": "vitest run",
     "check-types": "tsc --noEmit"
