@@ -267,6 +267,56 @@
 .note-prose > :first-child {
   margin-top: 0;
 }
+/* The first block is the note's title (server derives title from it): render it prominently. */
+.note-prose > p:first-child,
+.note-prose > h1:first-child,
+.note-prose > h2:first-child,
+.note-prose > h3:first-child {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.5rem;
+}
+/* Placeholder ("Untitled" on the empty first line) from @tiptap/extension-placeholder. */
+.note-prose .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+/* To-do checklist (TaskList/TaskItem). Preflight strips list defaults, so lay it out explicitly. */
+.note-prose ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5rem 0;
+}
+.note-prose ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+}
+.note-prose ul[data-type="taskList"] li > label {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+  user-select: none;
+}
+.note-prose ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.note-prose ul[data-type="taskList"] input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.note-prose ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+}
 
 /* Decorative background overlays — too gnarly to express as Tailwind arbitrary values. */
 .lp-hero-glow {

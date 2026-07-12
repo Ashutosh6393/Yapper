@@ -2,6 +2,7 @@
 
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
+import { Placeholder } from "@tiptap/extension-placeholder";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { buildExtensions } from "@yapper/editor";
 import { type AwarenessUser, socketServerMessageSchema } from "@yapper/schemas";
@@ -10,6 +11,7 @@ import { useEffect, useState } from "react";
 import type { Doc as YDoc } from "yjs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/sonner";
+import { EditorToolbar } from "../../../components/dashboard/editor-toolbar";
 import { getAuthToken } from "../../../lib/auth-token";
 import { type ConnStatus, useEditorStore } from "../../../lib/stores/editor";
 import { ContentSync } from "../../../lib/sync/content-sync";
@@ -103,16 +105,37 @@ function LegacyEditor({ noteId, assumeEditable = false, onMadePrivate }: EditorP
   ]);
 
   if (!provider) return null;
-  return <BoundEditor key={noteId} provider={provider} />;
+  return <NoteEditorSurface key={noteId} ydoc={provider.document} provider={provider} />;
 }
 
-function BoundEditor({ provider }: { provider: HocuspocusProvider }) {
+/**
+ * The rendered editor: toolbar (edit-permission only) + status bar + TipTap content. Shared by both
+ * persistence paths — `provider` is the Hocuspocus connection for a shared note, or `null` for a
+ * private note that persists locally (content lane), which swaps the connection badge for a local one
+ * and drops presence/caret.
+ */
+function NoteEditorSurface({
+  ydoc,
+  provider,
+}: {
+  ydoc: YDoc;
+  provider: HocuspocusProvider | null;
+}) {
   const status = useEditorStore((s) => s.status);
   const identity = useEditorStore((s) => s.identity);
   const permission = useEditorStore((s) => s.permission);
 
   const editor = useEditor({
-    extensions: [...buildExtensions(provider.document), CollaborationCaret.configure({ provider })],
+    extensions: [
+      ...buildExtensions(ydoc),
+      ...(provider ? [CollaborationCaret.configure({ provider })] : []),
+      // The note's title is its first line: show an "Untitled" placeholder there while it's empty.
+      Placeholder.configure({
+        includeChildren: false,
+        showOnlyWhenEditable: false,
+        placeholder: ({ editor: e, node }) => (e.state.doc.firstChild === node ? "Untitled" : ""),
+      }),
+    ],
     immediatelyRender: false,
     editable: false,
     editorProps: {
@@ -131,29 +154,31 @@ function BoundEditor({ provider }: { provider: HocuspocusProvider }) {
     editor?.setEditable(permission === "edit");
   }, [editor, permission]);
 
-  if (status === "made_private") {
-    return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center">
-        <p className="font-semibold">Note made private by owner</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The owner has stopped sharing this note.
-        </p>
-      </div>
-    );
-  }
+  if (status === "made_private") return <MadePrivateNotice />;
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <ConnectionBadge status={status} />
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        {provider ? <ConnectionBadge status={status} /> : <LocalBadge />}
         {permission === "view" && (
           <Badge variant="outline" className="text-amber-600">
             View only
           </Badge>
         )}
-        {editor && <Presence provider={provider} />}
+        {editor && provider ? <Presence provider={provider} /> : null}
       </div>
+      {permission === "edit" && editor ? <EditorToolbar editor={editor} /> : null}
       <EditorContent editor={editor} />
+    </div>
+  );
+}
+
+/** Shown to a collaborator after the owner rotates the note private and disconnects them (slice 07). */
+function MadePrivateNotice() {
+  return (
+    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center">
+      <p className="font-semibold">Note made private by owner</p>
+      <p className="mt-1 text-sm text-muted-foreground">The owner has stopped sharing this note.</p>
     </div>
   );
 }
@@ -305,68 +330,13 @@ function ContentLaneEditor({ noteId, assumeEditable = false, onMadePrivate }: Ed
   }, [access, controller, assumeEditable, setStatus, setPermission]);
 
   if (!access) return null;
-  // Remount the bound editor across a writer handoff so the CollaborationCaret extension is rebuilt.
+  // Remount the surface across a writer handoff so the CollaborationCaret extension is rebuilt.
   return (
-    <ContentLaneBound
+    <NoteEditorSurface
       key={provider ? "shared" : "private"}
       ydoc={controller.ydoc}
       provider={provider}
     />
-  );
-}
-
-function ContentLaneBound({ ydoc, provider }: { ydoc: YDoc; provider: HocuspocusProvider | null }) {
-  const status = useEditorStore((s) => s.status);
-  const identity = useEditorStore((s) => s.identity);
-  const permission = useEditorStore((s) => s.permission);
-
-  const editor = useEditor({
-    extensions: [
-      ...buildExtensions(ydoc),
-      ...(provider ? [CollaborationCaret.configure({ provider })] : []),
-    ],
-    immediatelyRender: false,
-    editable: false,
-    editorProps: {
-      attributes: {
-        class:
-          "note-prose min-h-80 rounded-lg border bg-card p-4 outline-none focus:border-primary/50",
-      },
-    },
-  });
-
-  useEffect(() => {
-    if (editor && identity) editor.commands.updateUser(identity);
-  }, [editor, identity]);
-
-  useEffect(() => {
-    editor?.setEditable(permission === "edit");
-  }, [editor, permission]);
-
-  if (status === "made_private") {
-    return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center">
-        <p className="font-semibold">Note made private by owner</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The owner has stopped sharing this note.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        {provider ? <ConnectionBadge status={status} /> : <LocalBadge />}
-        {permission === "view" && (
-          <Badge variant="outline" className="text-amber-600">
-            View only
-          </Badge>
-        )}
-        {editor && provider && <Presence provider={provider} />}
-      </div>
-      <EditorContent editor={editor} />
-    </div>
   );
 }
 

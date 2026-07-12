@@ -1,8 +1,17 @@
 # 22 · Note Dialog URL — Implementation
 
-## Status: not-started
+## Status: done — goal state reached
 
 ## Completed
+
+- `app/dashboard/page.test.tsx`: goal-state tests (TDD, RED→GREEN) — `push` simulates navigation;
+  card-open pushes `?note=`; open preserves `view`; `?note=` deep-link renders the dialog; close
+  strips `note` and keeps `view`. Existing create/instant-create tests pass unchanged.
+- `app/dashboard/page.tsx`: `dialogNoteId` now derived from `searchParams.get("note")` (local state
+  removed); strip effect deleted; `openNote` (push merged params) + `closeDialog` (push minus `note`);
+  `NoteSection onOpen` + `createAndOpen` (both flag paths) route through `openNote`; `creating`/
+  `createdId` stay local.
+- Verification: 15/15 dashboard tests green, `tsc --noEmit` clean, Biome clean.
 
 ## In Progress
 
@@ -10,12 +19,8 @@
 
 ## Next Steps
 
-1. Write goal-state tests in `app/dashboard/page.test.tsx` (card-open pushes `?note=`; deep-link
-   `?note=` renders dialog; close strips `note` and keeps `view`; open preserves `view`).
-2. `app/dashboard/page.tsx`: derive `dialogNoteId` from `searchParams.get("note")`; delete the strip
-   effect; add `openNote`/`closeDialog` that push merged params; wire `NoteSection onOpen` + create
-   flow to `openNote`; keep `creating`/`createdId` local.
-3. Green + `tsc --noEmit` + Biome. Run web tests from `apps/web` (`bunx vitest run --maxWorkers=1`).
+- Live browser walkthrough of the auth-gated dashboard (open/refresh/back) not run — needs interactive
+  OAuth login. Unit tests cover the URL↔dialog behavior; drive in-browser if a manual check is wanted.
 
 ## Session Notes
 

@@ -78,7 +78,9 @@ export default function DashboardPage() {
   const deleteLabel = useDeleteLabel();
 
   const [search, setSearch] = useState("");
-  const [dialogNoteId, setDialogNoteId] = useState<string | null>(null);
+  // The open note lives in the URL (?note=<id>) — the single source of truth for the dialog, so
+  // refresh, deep-links (share-join / bookmark), and Back/Forward all reopen/close it.
+  const dialogNoteId = searchParams.get("note");
   const [labelsNoteId, setLabelsNoteId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -136,6 +138,13 @@ export default function DashboardPage() {
   }
   if (!session) return null;
 
+  // Open a note in the dialog by writing it to the URL, preserving the active view/label params.
+  function openNote(id: string) {
+    const params = new URLSearchParams(searchParams);
+    params.set("note", id);
+    router.push(`/dashboard?${params.toString()}`);
+  }
+
   // Instant create (goal #5): open the editor shell immediately, create in parallel, seed the
   // metadata cache from the response (no GET), then bind the real editor — editable at once.
   async function createAndOpen() {
@@ -147,7 +156,7 @@ export default function DashboardPage() {
         // rebuild), and open the editor on it. NoteDialog reads it through the flag-gated Dexie path.
         const id = engineActions.createNote();
         setCreatedId(id);
-        setDialogNoteId(id);
+        openNote(id);
         return;
       }
       const note = await createNote.mutateAsync();
@@ -161,7 +170,7 @@ export default function DashboardPage() {
         isOwner: true,
       });
       setCreatedId(note.id);
-      setDialogNoteId(note.id);
+      openNote(note.id);
     } catch {
       toast.error("Couldn't create note");
     } finally {
@@ -170,8 +179,11 @@ export default function DashboardPage() {
   }
 
   function closeDialog() {
-    setDialogNoteId(null);
     setCreatedId(null);
+    const params = new URLSearchParams(searchParams);
+    params.delete("note");
+    const qs = params.toString();
+    router.push(qs ? `/dashboard?${qs}` : "/dashboard");
   }
 
   function navigate(next: DashboardView) {
@@ -255,7 +267,7 @@ export default function DashboardPage() {
             }
             ownerNames={isShared ? ownerNames : undefined}
             emptyText={VIEW_META[view].empty}
-            onOpen={setDialogNoteId}
+            onOpen={openNote}
             onArchive={(id) => (syncOn ? engineActions.archiveNote(id) : archiveNote.mutate(id))}
             onUnarchive={(id) =>
               syncOn ? engineActions.unarchiveNote(id) : unarchiveNote.mutate(id)

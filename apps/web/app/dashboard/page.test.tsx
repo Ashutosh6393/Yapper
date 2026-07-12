@@ -2,12 +2,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// A controllable URL — the page reads the active view from useSearchParams().
+// A controllable URL — the page reads the active view + open note from useSearchParams().
 let currentParams = new URLSearchParams();
 const setParams = (qs: string) => {
   currentParams = new URLSearchParams(qs);
 };
-const pushMock = vi.fn();
+// push simulates a navigation: record the call AND update the params the next render reads, so
+// URL-driven state (the note dialog) reacts the way it would in the browser.
+const pushMock = vi.fn((url: string) => {
+  setParams(url.includes("?") ? url.slice(url.indexOf("?") + 1) : "");
+});
 
 vi.mock("../../lib/auth-client", () => ({
   signOut: vi.fn(),
@@ -19,7 +23,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("../notes/[id]/Editor", () => ({ Editor: () => <div>editor</div> }));
-vi.mock("../notes/[id]/ShareDialog", () => ({ ShareDialog: () => <div>share</div> }));
+vi.mock("../../components/dashboard/access-control", () => ({
+  AccessControl: () => <div>access</div>,
+}));
 
 const activeNote = {
   id: "act",
@@ -153,6 +159,34 @@ describe("DashboardPage (spec 12 — single URL-driven view)", () => {
     await userEvent.click(screen.getByRole("button", { name: /note actions/i }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /labels/i }));
     expect(await screen.findByLabelText("New label name")).toBeInTheDocument();
+  });
+
+  it("opening a note card puts it in the URL (?note=)", async () => {
+    render(<DashboardPage />);
+    await userEvent.click(screen.getByText("ActiveNote"));
+    expect(pushMock).toHaveBeenCalledWith("/dashboard?note=act");
+  });
+
+  it("opening a note preserves the active view", async () => {
+    setParams("view=archive");
+    render(<DashboardPage />);
+    await userEvent.click(screen.getByText("ArchivedNote"));
+    expect(pushMock).toHaveBeenCalledWith("/dashboard?view=archive&note=arc");
+  });
+
+  it("a ?note= deep link opens the dialog", async () => {
+    setParams("note=act");
+    render(<DashboardPage />);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("editor")).toBeInTheDocument();
+  });
+
+  it("closing the dialog strips note but keeps the view", async () => {
+    setParams("view=archive&note=arc");
+    render(<DashboardPage />);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /close/i }));
+    expect(pushMock).toHaveBeenCalledWith("/dashboard?view=archive");
   });
 
   it("New Note creates a note and opens the dialog", async () => {

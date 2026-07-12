@@ -1,5 +1,7 @@
 import type { Extensions } from "@tiptap/core";
 import { Collaboration } from "@tiptap/extension-collaboration";
+import { TaskItem } from "@tiptap/extension-task-item";
+import { TaskList } from "@tiptap/extension-task-list";
 import { StarterKit } from "@tiptap/starter-kit";
 import type * as Y from "yjs";
 import { COLLAB_FIELD } from "./derive";
@@ -15,6 +17,10 @@ import { COLLAB_FIELD } from "./derive";
 export function buildExtensions(doc: Y.Doc): Extensions {
   return [
     StarterKit.configure({ undoRedo: false }),
+    // Checkbox lists (todo). Separate from StarterKit; adding them here — the canonical schema —
+    // keeps every peer and the server's derivation in agreement (ADR-001).
+    TaskList,
+    TaskItem.configure({ nested: true }),
     Collaboration.configure({ document: doc, field: COLLAB_FIELD }),
   ];
 }

@@ -30,8 +30,16 @@ vi.mock("@yapper/editor", () => ({ buildExtensions: () => [] }));
 vi.mock("@tiptap/extension-collaboration-caret", () => ({
   CollaborationCaret: { configure: () => ({}) },
 }));
+vi.mock("@tiptap/extension-placeholder", () => ({ Placeholder: { configure: () => ({}) } }));
 vi.mock("@tiptap/react", () => ({
-  useEditor: () => ({ setEditable, commands: { updateUser: vi.fn() } }),
+  // Minimal editor shape: setEditable + updateUser plus the read/subscribe surface the toolbar touches.
+  useEditor: () => ({
+    setEditable,
+    commands: { updateUser: vi.fn() },
+    on: vi.fn(),
+    off: vi.fn(),
+    isActive: () => false,
+  }),
   EditorContent: () => <div data-testid="content" />,
 }));
 vi.mock("../../../lib/auth-token", () => ({ getAuthToken: () => "tok" }));
