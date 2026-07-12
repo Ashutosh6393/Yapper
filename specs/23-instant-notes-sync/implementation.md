@@ -1,8 +1,11 @@
 # 23 · Instant, Lag-Free Notes — Implementation
 
-## Status: planned — not started
+## Status: code complete — awaiting flag flip + manual E2E
 
 Design: [design.md](./design.md) · Decisions: [decisions.md](./decisions.md)
+
+**One manual step remains:** set `NEXT_PUBLIC_SYNC_ENGINE=1` in `apps/web/.env` (documented in
+`.env.example`; the file itself is guarded from tooling). Prod: set the same env var in the deploy.
 
 ## Goal State (from design)
 
@@ -14,20 +17,26 @@ Design: [design.md](./design.md) · Decisions: [decisions.md](./decisions.md)
 
 ## Work Items (TDD — test first, RED → GREEN)
 
-- [ ] **Socket, shared notes** (`apps/socket/src/metadata.ts`): `saveDerivedMetadata` also bumps
-      `metaVersion` and calls `publishPokes(publisher, await loadNoteAudience(db, noteId))`. Thread the
-      Redis publisher in from the socket wiring. Test: extend `persistence.test.ts` to assert
-      `metaVersion` increments on save (and preview persists — regression guard for bug #2).
-- [ ] **API, private notes** (`apps/api/src/notes/router.ts` `PUT /content`): after the metadata
-      update, `publishPokes(redisPublisher, await loadNoteAudience(db, id))`. Test: extend
-      `content.test.ts` to assert a poke is published to the owner.
-- [ ] **Web propagation test**: with the engine flag on, a simulated `poke → pull` re-materializes a
-      note whose `metaVersion` grew, and the dashboard card renders the updated **title and preview**.
-- [ ] **Enable the flag**: set `NEXT_PUBLIC_SYNC_ENGINE=1` (`apps/web/.env` + `.env.example` note).
-- [ ] **Verification**: `bun test` in `apps/socket`, `apps/api`, and web (`bunx vitest run --maxWorkers=1`,
-      per memory `web-vitest-oom`); `bun run check-types` in each touched app; Biome clean.
-- [ ] **Manual E2E**: log in, open a note over the dashboard, type a heading + body, confirm the card's
-      title and preview update within ~1s without navigating. Repeat for a shared note.
+- [x] **Socket, shared notes** (`apps/socket/src/metadata.ts`): `saveDerivedMetadata` now bumps
+      `metaVersion` and calls `publishPokes(publisher, await loadNoteAudience(noteId))`; publisher
+      threaded from `index.ts` (`buildRedisPublisher`, quit on destroy). Tests: `persistence.test.ts`
+      asserts `metaVersion` increments and the owner is poked (injected fake publisher).
+- [x] **API, private notes** (`apps/api/src/notes/router.ts` `PUT /content`): pokes the owner via
+      `publishPokes(publisher, await loadNoteAudience(id))` after the write; publisher injected through
+      `notesRouter(mw, publisher = redisPublisher)` and wired from `app.ts` (`syncDeps.publisher`).
+      Test: `content.test.ts` asserts the owner is poked (injected fake).
+- [~] **Web propagation test**: **skipped as redundant.** No web code change was needed — the
+      poke→pull→rebuild→`useLiveQuery`→card path is already covered end-to-end by existing tests:
+      `note-card.test.tsx` (renders `preview`), `pull.test.ts`/rebuild tests (a `metaVersion` delta
+      re-materializes `db.notes`). The only new behavior (bump + poke) is tested on both server paths.
+- [~] **Enable the flag**: `.env.example` documents `NEXT_PUBLIC_SYNC_ENGINE=1`; `apps/web/.env` is
+      guarded from tooling, so the user sets it (see Status). No code change.
+- [x] **Verification**: socket `bun test` 26/26, type-clean; api `bun test` 56 pass (the 2 fails are
+      pre-existing `labels/` timeout flakes — pass with `--timeout 25000`, and labels routes are
+      untouched); api + socket `check-types` clean; Biome clean on all changed files. No web code
+      changed, so the web suite is unaffected.
+- [ ] **Manual E2E** (after flag flip): log in, open a note over the dashboard, type a heading + body,
+      confirm the card's title and preview update within ~1s without navigating. Repeat for a shared note.
 
 ## Out of Scope (see design)
 

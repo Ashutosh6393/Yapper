@@ -1,6 +1,13 @@
 import { db, label, note, noteCollaborator, noteDoc, noteLabel, user } from "@yapper/db";
 import { deriveNoteMetadata } from "@yapper/editor/collab";
-import { bustNotePermissions, revokeChannel, roleChangeChannel } from "@yapper/permissions";
+import {
+  bustNotePermissions,
+  loadNoteAudience,
+  publishPokes,
+  type RedisPublisher,
+  revokeChannel,
+  roleChangeChannel,
+} from "@yapper/permissions";
 import {
   createNoteArgsSchema,
   noteListQuerySchema,
@@ -63,7 +70,10 @@ const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
  * Notes CRUD, mounted at `/api/notes`. Every route is gated by the supplied auth middleware.
  * List/get select metadata columns only — never the CRDT blob in `note_doc` (slice 04).
  */
-export function notesRouter(requireAuthMw: RequestHandler): Router {
+export function notesRouter(
+  requireAuthMw: RequestHandler,
+  publisher: RedisPublisher | null = redisPublisher,
+): Router {
   const router = Router();
   router.use(requireAuthMw);
 
@@ -458,6 +468,9 @@ export function notesRouter(requireAuthMw: RequestHandler): Router {
         .update(note)
         .set({ title, preview, updatedAt: new Date(), metaVersion: sql`${note.metaVersion} + 1` })
         .where(eq(note.id, id));
+      // Poke the note's audience so their open dashboards pull the fresh title/preview at once
+      // (spec 23); no-op without Redis, where clients still refresh via their pull backstops.
+      await publishPokes(publisher, await loadNoteAudience(id));
       res.status(204).end();
     }),
   );

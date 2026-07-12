@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import supertest from "supertest";
 import * as Y from "yjs";
 import { buildApp } from "../app";
+import { permCache } from "../permissions";
 
 /**
  * Goal-state (spec 20): `PUT /api/notes/:id/content` persists a private note's body and derives its
@@ -111,6 +112,29 @@ test("a second PUT upserts the same note_doc row and bumps meta_version again (g
     .from(noteDoc)
     .where(eq(noteDoc.noteId, privateNoteId));
   expect(rows).toHaveLength(1); // upsert, not a duplicate row
+}, 30_000);
+
+test("PUT /content pokes the owner so their open dashboard pulls the edit (spec 23)", async () => {
+  const channels: string[] = [];
+  const pokeApp = buildApp({
+    skipAuth: true,
+    syncDeps: {
+      permCache,
+      publisher: {
+        publish: async (channel) => {
+          channels.push(channel);
+        },
+        quit: async () => {},
+      },
+    },
+  });
+  const res = await asUser(ownerId)(
+    supertest(pokeApp)
+      .put(`/api/notes/${privateNoteId}/content`)
+      .send({ state: encodeDoc("Poke me", "the body") }),
+  );
+  expect(res.status).toBe(204);
+  expect(channels).toContain(`poke:user:${ownerId}`);
 }, 30_000);
 
 test("a view-only collaborator cannot PUT content → 403 (goal #3)", async () => {
