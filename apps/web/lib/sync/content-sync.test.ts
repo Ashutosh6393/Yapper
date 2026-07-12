@@ -124,6 +124,46 @@ describe("ContentSync handoff preserves single-writer (goals #10, #11)", () => {
   });
 });
 
+describe("ContentSync flush-on-close (spec 23 — fast close must not drop the edit)", () => {
+  it("destroy flushes a pending private edit so a fast close reaches the server", async () => {
+    vi.useFakeTimers();
+    const flush = vi.fn().mockResolvedValue(undefined);
+    const cs = new ContentSync({
+      noteId: "n1",
+      createProvider: vi.fn(() => ({ destroy: vi.fn() })),
+      flush,
+      createPersistence: mockPersistence,
+      debounceMs: 100,
+    });
+
+    cs.setAccess("private");
+    edit(cs.ydoc, "Quick note"); // schedules a flush 100ms out
+    cs.destroy(); // close BEFORE the debounce fires
+
+    expect(flush).toHaveBeenCalledTimes(1); // flushed on close, not dropped
+  });
+
+  it("destroy does NOT flush when nothing is pending (no redundant write)", async () => {
+    vi.useFakeTimers();
+    const flush = vi.fn().mockResolvedValue(undefined);
+    const cs = new ContentSync({
+      noteId: "n1",
+      createProvider: vi.fn(() => ({ destroy: vi.fn() })),
+      flush,
+      createPersistence: mockPersistence,
+      debounceMs: 100,
+    });
+
+    cs.setAccess("private");
+    edit(cs.ydoc, "Saved");
+    await vi.advanceTimersByTimeAsync(100); // debounce already flushed
+    expect(flush).toHaveBeenCalledTimes(1);
+    cs.destroy(); // nothing pending
+
+    expect(flush).toHaveBeenCalledTimes(1); // no extra flush on close
+  });
+});
+
 describe("ContentSync offline durability (goal #9)", () => {
   it("keeps the edit durable in y-indexeddb and does not throw when the flush fails", async () => {
     const noteId = `offline-${crypto.randomUUID()}`;

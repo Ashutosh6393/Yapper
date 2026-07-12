@@ -118,6 +118,15 @@ export class ContentSync {
 
   destroy(): void {
     if (this.destroyed) return;
+    // Flush-on-close (spec 23): a private note with a *pending* debounced flush would otherwise lose
+    // its last edits from the server + dashboard on a fast dialog close (the content stays durable in
+    // y-indexeddb, but nothing pushes it until the note is reopened). Encode synchronously and fire the
+    // flush without awaiting — the bytes are captured before teardown, so the POST completes after.
+    if (this.access === "private" && this.flushTimer) {
+      this.onLocalDerive?.(this.ydoc);
+      const state = Y.encodeStateAsUpdate(this.ydoc);
+      void this.flush(this.noteId, state).catch(() => {});
+    }
     this.destroyed = true;
     this.cancelFlush();
     this.ydoc.off("update", this.onUpdate);
