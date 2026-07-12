@@ -37,6 +37,9 @@ export interface ContentSyncOptions {
   flush?: (noteId: string, state: Uint8Array) => Promise<void>;
   /** Optimistic local title/preview effect (spec 19) run on each flush; server value stays canonical. */
   onLocalDerive?: (ydoc: Y.Doc) => void;
+  /** Ran after a *successful* flush so the metadata lane can pull the server-derived title/preview into
+   * the dashboard (spec 23) — reliable without depending on the SSE poke reaching this tab. */
+  onFlushed?: () => void;
   /** Local persistence factory. Default: `y-indexeddb`. Injected in tests to skip real IndexedDB. */
   createPersistence?: (noteId: string, ydoc: Y.Doc) => ContentPersistence;
   /** Trailing-debounce window for the private REST flush. */
@@ -73,6 +76,7 @@ export class ContentSync {
   private readonly createProvider: (ydoc: Y.Doc) => ContentProvider;
   private readonly flush: (noteId: string, state: Uint8Array) => Promise<void>;
   private readonly onLocalDerive?: (ydoc: Y.Doc) => void;
+  private readonly onFlushed?: () => void;
   private readonly persistence: ContentPersistence;
   private readonly debounceMs: number;
 
@@ -85,6 +89,7 @@ export class ContentSync {
     this.createProvider = opts.createProvider;
     this.flush = opts.flush ?? defaultFlush;
     this.onLocalDerive = opts.onLocalDerive;
+    this.onFlushed = opts.onFlushed;
     this.debounceMs = opts.debounceMs ?? 800;
 
     this.ydoc = new Y.Doc();
@@ -125,7 +130,9 @@ export class ContentSync {
     if (this.access === "private" && this.flushTimer) {
       this.onLocalDerive?.(this.ydoc);
       const state = Y.encodeStateAsUpdate(this.ydoc);
-      void this.flush(this.noteId, state).catch(() => {});
+      void this.flush(this.noteId, state)
+        .then(() => this.onFlushed?.())
+        .catch(() => {});
     }
     this.destroyed = true;
     this.cancelFlush();
@@ -163,6 +170,8 @@ export class ContentSync {
     const state = Y.encodeStateAsUpdate(this.ydoc);
     try {
       await this.flush(this.noteId, state);
+      // Server now holds the derived title/preview + a bumped metaVersion; pull it into the dashboard.
+      this.onFlushed?.();
     } catch {
       // Transient (offline / 5xx): keep the local doc (already durable in y-indexeddb) and retry later.
       // Never throw into the editor. A subsequent edit reschedules; re-arm once so a lone failed flush

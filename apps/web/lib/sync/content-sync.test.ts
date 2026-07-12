@@ -124,6 +124,50 @@ describe("ContentSync handoff preserves single-writer (goals #10, #11)", () => {
   });
 });
 
+describe("ContentSync pull-after-flush (spec 23 — dashboard must see the new title)", () => {
+  it("calls onFlushed after a successful private flush so the metadata lane can pull", async () => {
+    vi.useFakeTimers();
+    const flush = vi.fn().mockResolvedValue(undefined);
+    const onFlushed = vi.fn();
+    const cs = new ContentSync({
+      noteId: "n1",
+      createProvider: vi.fn(() => ({ destroy: vi.fn() })),
+      flush,
+      onFlushed,
+      createPersistence: mockPersistence,
+      debounceMs: 100,
+    });
+
+    cs.setAccess("private");
+    edit(cs.ydoc, "My Title");
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(onFlushed).toHaveBeenCalledTimes(1);
+    cs.destroy();
+  });
+
+  it("does NOT call onFlushed when the flush fails (nothing new landed server-side)", async () => {
+    const flush = vi.fn().mockRejectedValue(new Error("offline"));
+    const onFlushed = vi.fn();
+    const cs = new ContentSync({
+      noteId: `off-${crypto.randomUUID()}`,
+      createProvider: vi.fn(),
+      flush,
+      onFlushed,
+      debounceMs: 10,
+    });
+
+    cs.setAccess("private");
+    edit(cs.ydoc, "x");
+    await new Promise((r) => setTimeout(r, 40));
+
+    expect(flush).toHaveBeenCalled();
+    expect(onFlushed).not.toHaveBeenCalled();
+    cs.destroy();
+  });
+});
+
 describe("ContentSync flush-on-close (spec 23 — fast close must not drop the edit)", () => {
   it("destroy flushes a pending private edit so a fast close reaches the server", async () => {
     vi.useFakeTimers();

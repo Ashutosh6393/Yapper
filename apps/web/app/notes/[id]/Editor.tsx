@@ -17,6 +17,7 @@ import { type ConnStatus, useEditorStore } from "../../../lib/stores/editor";
 import { ContentSync } from "../../../lib/sync/content-sync";
 import { db } from "../../../lib/sync/db";
 import { isSyncEngineEnabled } from "../../../lib/sync/flag";
+import { pull } from "../../../lib/sync/pull";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "ws://localhost:1234";
 
@@ -272,6 +273,9 @@ function ContentLaneEditor({ noteId, assumeEditable = false, onMadePrivate }: Ed
     () =>
       new ContentSync({
         noteId,
+        // After a private-note flush the server holds the fresh title/preview; pull it so the dashboard
+        // card updates without waiting on an SSE poke (which needs Redis + can miss this same tab).
+        onFlushed: () => void pull(),
         createProvider: (ydoc) => {
           let madePrivate = false;
           const p = new HocuspocusProvider({
