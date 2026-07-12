@@ -6,27 +6,29 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  /* brand + surface palette (from the imported Yapper Landing Page design). NOTE: `card`/`muted`
+  /* brand + surface palette — "Deep Indigo restraint" (hue ~275–285). NOTE: `card`/`muted`
      names are owned by shadcn's semantic tokens below, so the brand light card/text use
-     `surface`/`subtle` here (landing utilities: bg-surface, text-subtle). */
-  --color-ink: oklch(0.1776 0 0); /* dark page background */
-  --color-panel: oklch(0.2134 0 0); /* dark card/panel surface */
-  --color-panel-2: oklch(0.252 0 0); /* dark title/toolbar surface */
-  --color-fg: oklch(0.9491 0 0); /* primary text on dark */
-  --color-paper: oklch(0.9821 0 0); /* light section background */
-  --color-surface: oklch(0.9911 0 0); /* light card surface (brand) */
-  --color-ink-fg: oklch(0.2435 0 0); /* heading text on light */
-  --color-subtle: oklch(0.5032 0 0); /* muted body text on light (brand) */
-  --color-line: oklch(0.8822 0 0); /* light hairline border */
-  --color-brand: oklch(0.4341 0.0392 41.9938); /* brand brown */
-  --color-cream: oklch(0.9247 0.0524 66.1732); /* cream accent */
+     `surface`/`subtle` here (landing utilities: bg-surface, text-subtle). Neutrals carry a faint
+     cool indigo tint (chroma ≤0.02); saturated indigo is rationed to `brand`/`iris` (accent ≤10%). */
+  --color-ink: oklch(0.17 0.015 275); /* dark page background (cool near-black) */
+  --color-panel: oklch(0.21 0.018 275); /* dark card/panel surface */
+  --color-panel-2: oklch(0.25 0.02 275); /* dark title/toolbar surface */
+  --color-fg: oklch(0.96 0.004 275); /* primary text on dark */
+  --color-paper: oklch(0.99 0.002 275); /* light section background (cool white) */
+  --color-surface: oklch(1 0 0); /* light card surface (brand) */
+  --color-ink-fg: oklch(0.27 0.012 275); /* heading text on light */
+  --color-subtle: oklch(0.47 0.008 275); /* muted body text on light (≥4.5:1 on paper) */
+  --color-line: oklch(0.9 0.006 275); /* light hairline border */
+  --color-brand: oklch(0.47 0.15 275); /* indigo — primary action + accent text on light */
+  --color-iris: oklch(0.7 0.13 280); /* bright indigo — accent/primary on dark */
+  --color-iris-soft: oklch(0.955 0.02 285); /* faint indigo wash — light accent surfaces */
   --color-ablue: #4ea8ff;
   --color-aorange: #ff7b4e;
   --color-agreen: #22d3a5;
   --color-danger: #f87070;
 
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-display: var(--font-display-face), "Bricolage Grotesque", -apple-system, sans-serif;
+  --font-sans: var(--font-sans-face), "Hanken Grotesk", -apple-system, sans-serif;
 
   --animate-float: float 7s ease-in-out infinite;
   --animate-pulse-ring: pulse-ring 2s ease-out infinite;
@@ -137,12 +139,12 @@
   --popover-foreground: var(--color-ink-fg);
   --primary: var(--color-brand);
   --primary-foreground: var(--color-paper);
-  --secondary: var(--color-cream);
-  --secondary-foreground: var(--color-ink-fg);
-  --muted: oklch(0.95 0 0);
+  --secondary: var(--color-iris-soft);
+  --secondary-foreground: var(--color-brand);
+  --muted: oklch(0.96 0.004 285);
   --muted-foreground: var(--color-subtle);
-  --accent: var(--color-cream);
-  --accent-foreground: var(--color-ink-fg);
+  --accent: var(--color-iris-soft);
+  --accent-foreground: var(--color-brand);
   --destructive: var(--color-danger);
   --border: var(--color-line);
   --input: var(--color-line);
@@ -156,18 +158,18 @@
   --card-foreground: var(--color-fg);
   --popover: var(--color-panel-2);
   --popover-foreground: var(--color-fg);
-  --primary: var(--color-cream);
+  --primary: var(--color-iris);
   --primary-foreground: var(--color-ink);
   --secondary: var(--color-panel-2);
   --secondary-foreground: var(--color-fg);
   --muted: var(--color-panel-2);
-  --muted-foreground: oklch(0.72 0 0);
+  --muted-foreground: oklch(0.72 0.01 275);
   --accent: var(--color-panel-2);
   --accent-foreground: var(--color-fg);
   --destructive: var(--color-danger);
   --border: oklch(1 0 0 / 0.12);
   --input: oklch(1 0 0 / 0.15);
-  --ring: var(--color-cream);
+  --ring: var(--color-iris);
 }
 
 @theme inline {
@@ -269,17 +271,13 @@
 /* Decorative background overlays — too gnarly to express as Tailwind arbitrary values. */
 .lp-hero-glow {
   background:
-    radial-gradient(
-      ellipse 65% 70% at 80% 50%,
-      oklch(0.4341 0.0392 41.9938 / 0.14) 0%,
-      transparent 60%
-    ),
-    radial-gradient(ellipse 45% 55% at 10% 72%, oklch(0.6731 0.15 175 / 0.07) 0%, transparent 50%);
+    radial-gradient(ellipse 65% 70% at 80% 50%, oklch(0.55 0.16 278 / 0.2) 0%, transparent 60%),
+    radial-gradient(ellipse 45% 55% at 10% 72%, oklch(0.6 0.14 262 / 0.1) 0%, transparent 50%);
 }
 .lp-doc-glow {
   background: radial-gradient(
     ellipse 90% 80% at 50% 50%,
-    oklch(0.4341 0.0392 41.9938 / 0.14) 0%,
+    oklch(0.55 0.16 278 / 0.18) 0%,
     transparent 70%
   );
 }
@@ -293,7 +291,7 @@
 .lp-private-glow {
   background: radial-gradient(
     ellipse 60% 70% at 20% 50%,
-    oklch(0.4341 0.0392 41.9938 / 0.12) 0%,
+    oklch(0.55 0.16 278 / 0.16) 0%,
     transparent 55%
   );
 }
@@ -310,22 +308,59 @@
   background-size: 48px 48px;
 }
 
-/* Scroll reveal — JS toggles `.lp-in` (only when motion is allowed). */
+/* Scroll reveal — JS toggles `.lp-in` (only when motion is allowed). Content is visible by default
+   (no JS / SSR / headless → nothing hidden); the hidden state is applied by JS just before reveal. */
 .lp-reveal {
   opacity: 0;
-  transform: translateY(32px);
+  transform: translateY(30px) scale(0.985);
+  filter: blur(8px);
   transition:
-    opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .lp-card-reveal {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(20px) scale(0.99);
+  filter: blur(5px);
   transition:
-    opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .lp-in {
   opacity: 1;
   transform: none;
+  filter: none;
+}
+
+/* Hero entrance + ambient aurora. The aurora is a slow, low-amplitude drift on the hero glow that
+   reads as depth, not decoration; suppressed under reduced-motion. */
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+    filter: blur(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes aurora {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translate3d(-3%, 2%, 0) scale(1.08);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lp-aurora {
+    animation: aurora 18s ease-in-out infinite;
+  }
 }

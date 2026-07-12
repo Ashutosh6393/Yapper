@@ -4,7 +4,7 @@ import type { NoteMeta } from "@yapper/schemas";
 import { afterEach, expect, it, vi } from "vitest";
 
 // Mock the pusher so enqueue's nudge is spyable and no network is hit.
-vi.mock("./push", () => ({ schedulePush: vi.fn(), setPushOutcomeHandler: vi.fn() }));
+vi.mock("./push", () => ({ schedulePush: vi.fn() }));
 
 import { db } from "./db";
 import { archiveNote, enqueue } from "./mutate";

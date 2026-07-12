@@ -10,11 +10,10 @@ import { cancelScheduledRetry, resetBackoff } from "./backoff";
 import { db, rebuild } from "./db";
 // Register the client-mutator bodies so rebuild() folds the queued createNote.
 import "./mutators";
-import { push, setPushOutcomeHandler } from "./push";
+import { push } from "./push";
 
 afterEach(async () => {
   vi.clearAllMocks();
-  setPushOutcomeHandler(null);
   // The pusher schedules a real backoff retry on transient (spec 21) — cancel it so no timer leaks.
   cancelScheduledRetry();
   resetBackoff();
@@ -27,7 +26,7 @@ afterEach(async () => {
   ]);
 });
 
-it("drops a rejected seq and re-rebuilds (rollback), and hands the outcome to the seam", async () => {
+it("drops a rejected seq and re-rebuilds (rollback)", async () => {
   const id = crypto.randomUUID();
   const seq = await db.mutations.add({ name: "createNote", args: { id } });
   await rebuild();
@@ -37,14 +36,11 @@ it("drops a rejected seq and re-rebuilds (rollback), and hands the outcome to th
     lastMutationID: seq,
     verdicts: [{ seq, status: "rejected", reason: "forbidden" }],
   });
-  const seen = vi.fn();
-  setPushOutcomeHandler(seen);
 
   await push();
 
   expect(await db.mutations.get(seq)).toBeUndefined(); // poison mutation dropped
   expect(await db.notes.get(id)).toBeUndefined(); // rollback via rebuild
-  expect(seen).toHaveBeenCalledTimes(1);
 });
 
 it("keeps the whole queue on a transient failure (apiFetch throws)", async () => {

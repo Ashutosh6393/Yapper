@@ -1,16 +1,17 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { signIn, useSession } from "../../lib/auth-client";
 
 /**
  * Slice 08 — the logged-out marketing landing page at `/`.
- * Translated from the imported Claude Design file `Yapper Landing Page.dc.html`.
- * Styled with Tailwind v4 (theme tokens + keyframes live in `app/globals.css`). A handful of
- * decorative gradient overlays and the scroll-reveal classes are plain CSS in globals.css;
- * runtime-dynamic colors/sizes on the small mockup helpers stay as inline styles.
+ * Craft redesign: "Deep Indigo restraint" palette, Bricolage Grotesque display + Hanken Grotesk
+ * body, recomposed layout, layered depth, and purposeful motion (SSR-safe scroll reveals +
+ * hero parallax). Presence colors (blue/orange/green) stay reserved for live-collaboration UI in
+ * the product mockups. Tailwind v4 theme tokens + keyframes live in `app/globals.css`.
  * OAuth CTAs reuse the slice-02 Better Auth `signIn.social` flow.
  */
 
@@ -23,16 +24,25 @@ function signInWith(provider: Provider) {
   });
 }
 
-/* Shared class fragments to cut repetition. */
-const EYEBROW = "text-[12px] font-bold uppercase tracking-[0.1em]";
-const CHECK_ROW = "flex items-start gap-3";
-const BULLET_TEXT = "text-[15px] leading-[1.5] text-[oklch(0.82_0_0)]";
+/* Depth system (landing only). Light surfaces: a tight contact shadow + a soft ambient one.
+   On hover, the ambient shadow warms toward the indigo accent and the card lifts. */
+const CARD_REST =
+  "shadow-[0_1px_2px_oklch(0.2_0.02_275_/_0.04),0_10px_30px_oklch(0.2_0.02_275_/_0.05)]";
+const CARD_HOVER =
+  "hover:shadow-[0_2px_6px_oklch(0.47_0.15_275_/_0.08),0_22px_50px_oklch(0.47_0.15_275_/_0.14)]";
+const PANEL_DARK =
+  "shadow-[0_1px_0_oklch(1_0_0_/_0.06)_inset,0_30px_80px_oklch(0.1_0.02_275_/_0.6)]";
+
 const BTN =
-  "inline-flex cursor-pointer items-center gap-[10px] font-semibold transition-all duration-[180ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-[0.97]";
-const HERO_GOOGLE = `${BTN} rounded-[10px] border-none bg-surface px-[22px] py-[13px] text-[15px] tracking-[-0.2px] text-ink-fg shadow-[0_2px_8px_oklch(0_0_0_/_0.28)] hover:-translate-y-[2px] hover:shadow-[0_8px_24px_oklch(0_0_0_/_0.3)]`;
-const HERO_GITHUB = `${BTN} rounded-[10px] border-[1.5px] border-[oklch(1_0_0_/_0.14)] bg-transparent px-[22px] py-[13px] text-[15px] tracking-[-0.2px] text-fg hover:-translate-y-[2px] hover:border-[oklch(1_0_0_/_0.28)] hover:bg-[oklch(1_0_0_/_0.05)]`;
-const CTA_GOOGLE = `${BTN} rounded-[12px] border-none bg-ink-fg px-[26px] py-[14px] text-[16px] tracking-[-0.3px] text-paper shadow-[0_2px_8px_oklch(0_0_0_/_0.15)] hover:-translate-y-[2px] hover:shadow-[0_8px_24px_oklch(0_0_0_/_0.18)]`;
-const CTA_GITHUB = `${BTN} rounded-[12px] border-none bg-panel-2 px-[26px] py-[14px] text-[16px] tracking-[-0.3px] text-fg shadow-[0_2px_8px_oklch(0_0_0_/_0.12)] hover:-translate-y-[2px] hover:bg-[oklch(0.32_0_0)] hover:shadow-[0_8px_24px_oklch(0_0_0_/_0.18)]`;
+  "inline-flex cursor-pointer items-center gap-[10px] font-semibold transition-all duration-[200ms] ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-iris/70 focus-visible:ring-offset-2";
+const CHECK_ROW = "flex items-start gap-3";
+const BULLET_TEXT = "text-[15px] leading-[1.55] text-[oklch(0.82_0.01_275)]";
+// Hero on dark ink: light surface (Google) + outline (GitHub).
+const HERO_GOOGLE = `${BTN} rounded-[12px] border-none bg-surface px-[22px] py-[13px] text-[15px] tracking-[-0.2px] text-ink-fg shadow-[0_2px_10px_oklch(0.1_0.02_275_/_0.5)] ring-offset-ink hover:-translate-y-[2px] hover:shadow-[0_12px_30px_oklch(0.1_0.02_275_/_0.6)]`;
+const HERO_GITHUB = `${BTN} rounded-[12px] border-[1.5px] border-[oklch(1_0_0_/_0.16)] bg-[oklch(1_0_0_/_0.02)] px-[22px] py-[13px] text-[15px] tracking-[-0.2px] text-fg ring-offset-ink hover:-translate-y-[2px] hover:border-iris/60 hover:bg-iris/[0.08]`;
+// Final CTA on light paper: indigo primary (Google) + near-black secondary (GitHub).
+const CTA_GOOGLE = `${BTN} rounded-[13px] border-none bg-brand px-[26px] py-[15px] text-[16px] tracking-[-0.3px] text-white shadow-[0_2px_14px_oklch(0.47_0.15_275_/_0.35)] ring-offset-paper hover:-translate-y-[2px] hover:shadow-[0_14px_34px_oklch(0.47_0.15_275_/_0.42)]`;
+const CTA_GITHUB = `${BTN} rounded-[13px] border-none bg-ink-fg px-[26px] py-[15px] text-[16px] tracking-[-0.3px] text-white shadow-[0_2px_10px_oklch(0.17_0.015_275_/_0.18)] ring-offset-paper hover:-translate-y-[2px] hover:bg-ink`;
 
 function GoogleIcon({ size = 18 }: { size?: number }) {
   return (
@@ -69,7 +79,7 @@ function GitHubIcon({ size = 18 }: { size?: number }) {
 function LogoMark({ size = 32, radius = 9 }: { size?: number; radius?: number }) {
   return (
     <div
-      className="flex shrink-0 items-center justify-center bg-brand"
+      className="flex shrink-0 items-center justify-center bg-brand shadow-[0_2px_8px_oklch(0.47_0.15_275_/_0.4)]"
       style={{ width: size, height: size, borderRadius: radius }}
     >
       <svg width="17" height="12" viewBox="0 0 17 12" fill="none" aria-hidden="true">
@@ -79,7 +89,7 @@ function LogoMark({ size = 32, radius = 9 }: { size?: number; radius?: number })
   );
 }
 
-/** A small check in a colored circle, used by the bulleted feature lists. */
+/** A small check in the collaborator's color, used by the presence/private bulleted lists. */
 function CheckBullet({ bg, stroke = "white" }: { bg: string; stroke?: string }) {
   return (
     <div
@@ -99,132 +109,104 @@ function CheckBullet({ bg, stroke = "white" }: { bg: string; stroke?: string }) 
   );
 }
 
+/* Feature icons are monochrome indigo (restraint). Presence colors stay reserved for the live
+   mockups below, per the design system's Presence-Only rule. `wide` marks the two flagship
+   differentiators that get the larger treatment in the asymmetric grid. */
 const features = [
   {
-    iconBg: "rgba(78,168,255,0.1)",
+    title: "Real identities only",
+    body: "Google or GitHub login, every time. No anonymous access — every cursor on the page is a real, tracked person you can name.",
+    wide: true,
+    icon: (
+      <>
+        <circle cx="10" cy="7.5" r="3.5" strokeWidth="1.7" />
+        <path d="M3 18c0-3.866 3.134-7 7-7s7 3.134 7 7" strokeWidth="1.7" strokeLinecap="round" />
+      </>
+    ),
+  },
+  {
+    title: "Privacy is a switch",
+    body: "One access level per note — private, view, or edit. Flip to private and every collaborator disconnects instantly; the share link rotates.",
+    wide: true,
+    icon: (
+      <>
+        <rect x="4.5" y="9" width="11" height="8" rx="1.6" strokeWidth="1.7" />
+        <path d="M7.5 9V6.8a2.5 2.5 0 0 1 5 0V9" strokeWidth="1.7" strokeLinecap="round" />
+      </>
+    ),
+  },
+  {
     title: "Conflict-free editing",
     body: "Multiple people edit the same note simultaneously — powered by CRDTs, so no one overwrites anyone.",
     icon: (
       <path
         d="M4 3v5.5L10 14v3M16 3v5.5L10 14"
-        stroke="#4ea8ff"
-        strokeWidth="1.8"
+        strokeWidth="1.7"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
     ),
   },
   {
-    iconBg: "oklch(0.4341 0.0392 41.9938 / 0.1)",
     title: "Live presence",
-    body: "Every collaborator's cursor and text selection appears in real time — labeled with their name, color-coded.",
+    body: "Every collaborator's cursor and selection appears in real time — labeled with their name, color-coded.",
     icon: (
       <path
         d="M4 2.5l3.5 14 2.8-4.5H15L4 2.5Z"
-        stroke="oklch(0.4341 0.0392 41.9938)"
-        strokeWidth="1.8"
+        strokeWidth="1.7"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
     ),
   },
   {
-    iconBg: "rgba(34,211,165,0.1)",
     title: "Rich text formatting",
-    body: "Bold, italic, headings, bullets — real formatting. Your notes look like notes, not a wall of plain text.",
+    body: "Bold, italic, headings, lists — real structure. Your notes look like notes, not a wall of plain text.",
     icon: (
       <>
-        <path
-          d="M5 4h5.5a2.5 2.5 0 0 1 0 5H5V4Z"
-          stroke="#22d3a5"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M5 9h6a2.5 2.5 0 0 1 0 5H5V9Z"
-          stroke="#22d3a5"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <path d="M5 4h5.5a2.5 2.5 0 0 1 0 5H5V4Z" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="M5 9h6a2.5 2.5 0 0 1 0 5H5V9Z" strokeWidth="1.7" strokeLinejoin="round" />
       </>
     ),
   },
   {
-    iconBg: "rgba(255,123,78,0.1)",
-    title: "Real identities only",
-    body: "Google or GitHub login, every time. No anonymous access — every cursor is a real, tracked person.",
-    icon: (
-      <>
-        <circle cx="10" cy="7.5" r="3.5" stroke="#ff7b4e" strokeWidth="1.8" />
-        <path
-          d="M3 18c0-3.866 3.134-7 7-7s7 3.134 7 7"
-          stroke="#ff7b4e"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <circle cx="15" cy="5" r="2.5" fill="#ff7b4e" />
-        <path
-          d="M14 5l.8.8 1.4-1.4"
-          stroke="#fff"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </>
-    ),
-  },
-  {
-    iconBg: "rgba(78,168,255,0.1)",
     title: "Capability-link sharing",
     body: "Share via an unguessable link. Opening it requires login — and adds them to your tracked collaborator list.",
     icon: (
       <>
         <path
           d="M8.5 11.5a4.243 4.243 0 0 0 6 0l2-2a4.243 4.243 0 0 0-6-6l-1 1"
-          stroke="#4ea8ff"
-          strokeWidth="1.8"
+          strokeWidth="1.7"
           strokeLinecap="round"
         />
         <path
           d="M11.5 8.5a4.243 4.243 0 0 0-6 0l-2 2a4.243 4.243 0 0 0 6 6l1-1"
-          stroke="#4ea8ff"
-          strokeWidth="1.8"
+          strokeWidth="1.7"
           strokeLinecap="round"
         />
-      </>
-    ),
-  },
-  {
-    iconBg: "oklch(0.4341 0.0392 41.9938 / 0.1)",
-    title: "Instant revocation",
-    body: "Owner sets one access level: private, view-only, or edit. Flip to private and everyone disconnects — immediately.",
-    icon: (
-      <>
-        <rect
-          x="4.5"
-          y="9.5"
-          width="11"
-          height="8"
-          rx="1.5"
-          stroke="oklch(0.4341 0.0392 41.9938)"
-          strokeWidth="1.8"
-        />
-        <path
-          d="M7.5 9.5V7a2.5 2.5 0 0 1 5 0v2.5"
-          stroke="oklch(0.4341 0.0392 41.9938)"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <circle cx="10" cy="13.5" r="1" fill="oklch(0.4341 0.0392 41.9938)" />
       </>
     ),
   },
 ];
 
+const comparisonRows = [
+  { typical: "Anonymous cursors — a color, no name", yapper: "A real name behind every cursor" },
+  { typical: "Anyone with the link can edit", yapper: "Login required — no anonymous access" },
+  { typical: "Revoke by rotating the link and hoping", yapper: "One click disconnects everyone" },
+  { typical: "No record of who ever opened it", yapper: "Full collaborator list, tracked" },
+];
+
 export default function LandingPage() {
   const rootRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
+
+  // Hero parallax: the document mockup drifts up a touch slower than the page over the first
+  // ~640px of scroll (the hero region, since the hero sits at the top). Tracks window scroll rather
+  // than a target ref, so it needs no layout measurement — SSR/jsdom safe. Pure transform-only
+  // enhancement (the doc is fully visible without JS); flattened under reduced-motion.
+  const { scrollY } = useScroll();
+  const docY = useTransform(scrollY, [0, 640], [0, reduceMotion ? 0 : -72]);
+  const docRotate = useTransform(scrollY, [0, 640], [0, reduceMotion ? 0 : -1.5]);
 
   // Entry-surface redirect (spec 10 / ADR-0001, ADR-002): logged-in visitors are bounced to
   // /dashboard client-side (the session cookie lives on the api origin, invisible to web-origin
@@ -237,49 +219,39 @@ export default function LandingPage() {
     if (!isPending && session) router.replace("/dashboard");
   }, [isPending, session, router]);
 
-  // Scroll-reveal, mirroring the imported design's IntersectionObserver. Content is visible by
-  // default (SSR/no-JS friendly); we only add the hidden+transition classes when motion is allowed.
+  // Scroll-reveal, SSR/no-JS safe: content is visible by default; JS adds the hidden+transition
+  // classes to opted-in elements ([data-reveal] blocks, [data-card] staggered items) only when
+  // motion is allowed, then removes them as each scrolls into view.
   useEffect(() => {
     const root = rootRef.current;
     if (!root || typeof IntersectionObserver === "undefined") return;
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
 
-    const sectionIo = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          e.target.classList.add("lp-in");
-          sectionIo.unobserve(e.target);
-        }
-      },
-      { threshold: 0.05, rootMargin: "0px 0px -32px 0px" },
-    );
-    for (const el of root.querySelectorAll<HTMLElement>(
-      "section:not(:first-of-type) > div:last-child",
-    )) {
-      el.classList.add("lp-reveal");
-      sectionIo.observe(el);
-    }
+    const reveal = (cls: string, sel: string, stagger = 0) => {
+      const els = Array.from(root.querySelectorAll<HTMLElement>(sel));
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            e.target.classList.add("lp-in");
+            io.unobserve(e.target);
+          }
+        },
+        { threshold: 0.08, rootMargin: "0px 0px -40px 0px" },
+      );
+      els.forEach((el, i) => {
+        el.classList.add(cls);
+        if (stagger) el.style.transitionDelay = `${(i % 6) * stagger}s`;
+        io.observe(el);
+      });
+      return io;
+    };
 
-    const cardIo = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          e.target.classList.add("lp-in");
-          cardIo.unobserve(e.target);
-        }
-      },
-      { threshold: 0.04 },
-    );
-    root.querySelectorAll<HTMLElement>("[data-card]").forEach((el, i) => {
-      el.classList.add("lp-card-reveal");
-      el.style.transitionDelay = `${i * 0.07}s`;
-      cardIo.observe(el);
-    });
-
+    const a = reveal("lp-reveal", "[data-reveal]");
+    const b = reveal("lp-card-reveal", "[data-card]", 0.07);
     return () => {
-      sectionIo.disconnect();
-      cardIo.disconnect();
+      a.disconnect();
+      b.disconnect();
     };
   }, []);
 
@@ -299,56 +271,66 @@ export default function LandingPage() {
   return (
     <div ref={rootRef} className="lp-root bg-ink font-sans text-fg m-0 p-0">
       {/* ── NAV ── */}
-      <nav className="fixed inset-x-0 top-0 z-[100] flex h-[62px] items-center justify-between border-b border-[oklch(1_0_0_/_0.07)] bg-[oklch(0.1776_0_0_/_0.9)] px-[clamp(20px,5vw,60px)] backdrop-blur-[18px] backdrop-saturate-150">
+      <nav className="fixed inset-x-0 top-0 z-[100] flex h-[62px] items-center justify-between border-b border-[oklch(1_0_0_/_0.07)] bg-[oklch(0.17_0.015_275_/_0.72)] px-[clamp(20px,5vw,60px)] backdrop-blur-[20px] backdrop-saturate-150">
         <div className="flex items-center gap-[9px]">
-          <LogoMark />
-          <span className="font-display text-[20px] font-extrabold tracking-[-0.5px]">Yapper</span>
+          <LogoMark size={30} radius={8} />
+          <span className="font-display text-[20px] font-bold tracking-[-0.4px]">Yapper</span>
         </div>
-        <div className="flex items-center gap-[28px]">
+        <div className="flex items-center gap-[clamp(16px,3vw,30px)]">
           <a
             href="#features"
-            className="text-[14px] font-medium text-[oklch(0.6_0_0)] no-underline transition-colors hover:text-fg"
+            className="hidden text-[14px] font-medium text-[oklch(0.68_0.01_275)] no-underline transition-colors hover:text-fg sm:inline"
           >
             Features
           </a>
           <a
             href="#why"
-            className="text-[14px] font-medium text-[oklch(0.6_0_0)] no-underline transition-colors hover:text-fg"
+            className="hidden text-[14px] font-medium text-[oklch(0.68_0.01_275)] no-underline transition-colors hover:text-fg sm:inline"
           >
             Why Yapper
           </a>
+          <button
+            type="button"
+            onClick={() => signInWith("google")}
+            className="cursor-pointer rounded-[9px] bg-fg px-[16px] py-[8px] text-[13px] font-semibold tracking-[-0.2px] text-ink transition-all duration-[160ms] hover:-translate-y-[1px] hover:opacity-90"
+          >
+            Sign in
+          </button>
         </div>
       </nav>
 
       {/* ── HERO ── */}
-      <section className="relative flex min-h-screen items-center overflow-hidden bg-ink px-[clamp(20px,5vw,64px)] pt-[clamp(100px,14vh,148px)] pb-[90px]">
-        <div className="lp-hero-glow pointer-events-none absolute inset-0" />
-        <div className="lp-grid pointer-events-none absolute inset-0" />
-        <div className="relative z-[1] mx-auto flex w-full max-w-[1200px] flex-wrap items-center gap-[clamp(40px,6vw,80px)]">
+      <section className="relative flex min-h-screen items-center overflow-hidden bg-ink px-[clamp(20px,5vw,64px)] pt-[clamp(104px,15vh,156px)] pb-[90px]">
+        <div className="lp-aurora lp-hero-glow pointer-events-none absolute inset-0" />
+        <div className="lp-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_80%_70%_at_50%_35%,black,transparent)]" />
+        <div className="relative z-[1] mx-auto grid w-full max-w-[1200px] items-center gap-[clamp(40px,6vw,72px)] lg:grid-cols-[1.05fr_0.95fr]">
           {/* Left: headline */}
-          <div className="max-w-[560px] flex-[1_1_320px]">
-            <div className="mb-[28px] inline-flex animate-[fade-up_0.5s_ease_both] items-center gap-[7px] rounded-full border border-cream/30 bg-cream/10 py-[5px] pr-[14px] pl-[9px] motion-reduce:animate-none">
-              <span className="relative h-2 w-2 shrink-0">
+          <div className="max-w-[600px]">
+            <div className="mb-[26px] inline-flex animate-[hero-rise_0.6s_cubic-bezier(0.16,1,0.3,1)_both] items-center gap-[9px] rounded-full border border-iris/25 bg-iris/[0.07] py-[6px] pr-[15px] pl-[10px] motion-reduce:animate-none">
+              <span className="relative h-[9px] w-[9px] shrink-0">
                 <span className="absolute inset-0 animate-pulse-ring rounded-full bg-agreen motion-reduce:animate-none" />
                 <span className="absolute inset-[1.5px] rounded-full bg-agreen" />
               </span>
-              <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-cream/85">
+              <span className="text-[12px] font-semibold uppercase tracking-[0.07em] text-[oklch(0.86_0.05_282)]">
                 Real-time collaboration
               </span>
             </div>
 
-            <h1 className="mb-[22px] animate-[fade-up_0.55s_ease_0.08s_both] font-display text-[clamp(38px,5.2vw,66px)] font-extrabold leading-[1.04] tracking-[-2.5px] [text-wrap:pretty] motion-reduce:animate-none">
-              Notes that know
-              <br />
-              <span className="text-cream">who&apos;s in the room.</span>
+            <h1 className="mb-[24px] font-display text-[clamp(40px,5.6vw,72px)] font-extrabold leading-[1.02] tracking-[-2px] [text-wrap:balance]">
+              <span className="block animate-[hero-rise_0.7s_cubic-bezier(0.16,1,0.3,1)_0.06s_both] motion-reduce:animate-none">
+                Notes that know
+              </span>
+              <span className="block animate-[hero-rise_0.7s_cubic-bezier(0.16,1,0.3,1)_0.16s_both] text-iris motion-reduce:animate-none">
+                who&apos;s in the room.
+              </span>
             </h1>
 
-            <p className="mb-[38px] max-w-[440px] animate-[fade-up_0.55s_ease_0.16s_both] text-[clamp(16px,1.7vw,18px)] leading-[1.7] text-[oklch(0.65_0_0)] [text-wrap:pretty] motion-reduce:animate-none">
+            <p className="mb-[38px] max-w-[456px] animate-[hero-rise_0.7s_cubic-bezier(0.16,1,0.3,1)_0.26s_both] text-[clamp(16px,1.7vw,19px)] leading-[1.65] text-[oklch(0.72_0.01_275)] [text-wrap:pretty] motion-reduce:animate-none">
               Multiplayer rich-text editing with live cursors and real identities. See exactly
               who&apos;s reading, who&apos;s typing — and pull the note private in one click.
             </p>
 
-            <div className="flex animate-[fade-up_0.55s_ease_0.24s_both] flex-wrap gap-[12px] motion-reduce:animate-none">
+            <div className="flex animate-[hero-rise_0.7s_cubic-bezier(0.16,1,0.3,1)_0.36s_both] flex-wrap gap-[12px] motion-reduce:animate-none">
               <button type="button" onClick={() => signInWith("google")} className={HERO_GOOGLE}>
                 <GoogleIcon /> Continue with Google
               </button>
@@ -356,13 +338,21 @@ export default function LandingPage() {
                 <GitHubIcon /> Continue with GitHub
               </button>
             </div>
+            <p className="mt-[18px] animate-[hero-rise_0.7s_cubic-bezier(0.16,1,0.3,1)_0.44s_both] text-[13px] text-[oklch(0.6_0.01_275)] motion-reduce:animate-none">
+              Free to start · Every note is private until you share it
+            </p>
           </div>
 
-          {/* Right: animated document mockup */}
-          <div className="max-w-[480px] flex-[1_1_340px] animate-[fade-up_0.65s_ease_0.2s_both] motion-reduce:animate-none">
-            <div className="relative animate-float motion-reduce:animate-none">
-              <div className="lp-doc-glow pointer-events-none absolute inset-[-28px] rounded-[48px]" />
-              <div className="relative overflow-hidden rounded-[16px] border border-[oklch(1_0_0_/_0.09)] bg-panel shadow-[0_40px_100px_oklch(0_0_0_/_0.65)]">
+          {/* Right: animated document mockup (parallax) */}
+          <motion.div
+            style={{ y: docY, rotate: docRotate }}
+            className="animate-[hero-rise_0.85s_cubic-bezier(0.16,1,0.3,1)_0.2s_both] justify-self-center motion-reduce:animate-none lg:justify-self-end"
+          >
+            <div className="relative w-[min(480px,92vw)] animate-float motion-reduce:animate-none">
+              <div className="lp-doc-glow pointer-events-none absolute inset-[-30px] rounded-[48px]" />
+              <div
+                className={`relative overflow-hidden rounded-[16px] border border-[oklch(1_0_0_/_0.1)] bg-panel ${PANEL_DARK}`}
+              >
                 {/* title bar */}
                 <div className="flex h-[44px] items-center border-b border-[oklch(1_0_0_/_0.06)] bg-panel-2 px-[16px]">
                   <div className="flex flex-none gap-[7px]">
@@ -370,43 +360,43 @@ export default function LandingPage() {
                     <Dot color="#febc2e" />
                     <Dot color="#28c840" />
                   </div>
-                  <div className="flex-1 text-center text-[12px] font-medium text-[oklch(0.5_0_0)]">
+                  <div className="flex-1 text-center text-[12px] font-medium text-[oklch(0.55_0.01_275)]">
                     Q3 Launch Notes
                   </div>
                   <div className="flex items-center">
-                    <Avatar letter="J" bg="#4ea8ff" border="oklch(0.2520 0 0)" />
-                    <Avatar letter="M" bg="#ff7b4e" border="oklch(0.2520 0 0)" />
+                    <Avatar letter="J" bg="#4ea8ff" border="oklch(0.25 0.02 275)" />
+                    <Avatar letter="M" bg="#ff7b4e" border="oklch(0.25 0.02 275)" />
                     <Avatar
                       letter="A"
                       bg="#22d3a5"
-                      color="oklch(0.1776 0 0)"
-                      border="oklch(0.2520 0 0)"
+                      color="oklch(0.17 0.015 275)"
+                      border="oklch(0.25 0.02 275)"
                     />
                   </div>
                 </div>
                 {/* toolbar */}
                 <div className="flex h-[36px] items-center gap-px border-b border-[oklch(1_0_0_/_0.04)] bg-panel px-[14px]">
-                  <span className="px-[7px] py-[3px] text-[12px] font-bold text-[oklch(0.45_0_0)]">
+                  <span className="px-[7px] py-[3px] text-[12px] font-bold text-[oklch(0.5_0.01_275)]">
                     B
                   </span>
-                  <span className="px-[7px] py-[3px] text-[12px] italic text-[oklch(0.45_0_0)]">
+                  <span className="px-[7px] py-[3px] text-[12px] italic text-[oklch(0.5_0.01_275)]">
                     I
                   </span>
-                  <span className="px-[7px] py-[3px] text-[12px] text-[oklch(0.45_0_0)] underline">
+                  <span className="px-[7px] py-[3px] text-[12px] text-[oklch(0.5_0.01_275)] underline">
                     U
                   </span>
                   <div className="mx-[6px] h-[14px] w-px bg-[oklch(1_0_0_/_0.07)]" />
-                  <span className="px-[6px] py-[3px] text-[11px] font-bold text-[oklch(0.45_0_0)]">
+                  <span className="px-[6px] py-[3px] text-[11px] font-bold text-[oklch(0.5_0.01_275)]">
                     H1
                   </span>
-                  <span className="px-[6px] py-[3px] text-[11px] font-bold text-[oklch(0.45_0_0)]">
+                  <span className="px-[6px] py-[3px] text-[11px] font-bold text-[oklch(0.5_0.01_275)]">
                     H2
                   </span>
                   <div className="mx-[6px] h-[14px] w-px bg-[oklch(1_0_0_/_0.07)]" />
                   <svg width="14" height="10" viewBox="0 0 14 10" fill="none" aria-hidden="true">
                     <path
                       d="M1 1h12M1 5h9M1 9h10"
-                      stroke="oklch(0.45 0 0)"
+                      stroke="oklch(0.5 0.01 275)"
                       strokeWidth="1.5"
                       strokeLinecap="round"
                     />
@@ -417,10 +407,10 @@ export default function LandingPage() {
                   <div className="mb-[14px] font-display text-[18px] font-bold tracking-[-0.4px]">
                     Q3 Launch Notes
                   </div>
-                  <div className="mb-[8px] text-[10px] font-bold uppercase tracking-[0.1em] text-[oklch(0.4_0_0)]">
+                  <div className="mb-[8px] text-[10px] font-bold uppercase tracking-[0.1em] text-[oklch(0.5_0.02_282)]">
                     Priorities
                   </div>
-                  <div className="mb-[3px] overflow-visible whitespace-nowrap text-[13px] leading-[1.75] text-[oklch(0.72_0_0)]">
+                  <div className="mb-[3px] overflow-visible whitespace-nowrap text-[13px] leading-[1.75] text-[oklch(0.74_0.01_275)]">
                     → Ship onboarding by <strong className="font-semibold text-fg">July 15</strong>
                     <Cursor
                       name="Jess"
@@ -429,7 +419,7 @@ export default function LandingPage() {
                       blink="caret-blink 1.1s step-end infinite"
                     />
                   </div>
-                  <div className="mb-[3px] overflow-visible text-[13px] leading-[1.75] text-[oklch(0.72_0_0)]">
+                  <div className="mb-[3px] overflow-visible text-[13px] leading-[1.75] text-[oklch(0.74_0.01_275)]">
                     → Hit{" "}
                     <span className="rounded-[2px] bg-[#ff7b4e28] py-px text-fg">10k signups</span>
                     <Cursor
@@ -440,18 +430,18 @@ export default function LandingPage() {
                     />{" "}
                     before end of Q3
                   </div>
-                  <div className="mb-[14px] text-[13px] leading-[1.75] text-[oklch(0.72_0_0)]">
+                  <div className="mb-[14px] text-[13px] leading-[1.75] text-[oklch(0.74_0.01_275)]">
                     → Finalize API rate limit handling
                   </div>
-                  <div className="mb-[8px] text-[10px] font-bold uppercase tracking-[0.1em] text-[oklch(0.4_0_0)]">
+                  <div className="mb-[8px] text-[10px] font-bold uppercase tracking-[0.1em] text-[oklch(0.5_0.02_282)]">
                     Blockers
                   </div>
-                  <div className="overflow-visible text-[13px] leading-[1.75] text-[oklch(0.72_0_0)]">
+                  <div className="overflow-visible text-[13px] leading-[1.75] text-[oklch(0.74_0.01_275)]">
                     Rate limits becoming a problem at scale
                     <Cursor
                       name="Alex"
                       color="#22d3a5"
-                      textColor="oklch(0.1776 0 0)"
+                      textColor="oklch(0.17 0.015 275)"
                       anim="cursor-alex 9s ease-in-out 0.4s infinite"
                       blink="caret-blink 0.9s step-end 0.6s infinite"
                     />
@@ -459,68 +449,143 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* ── FEATURES ── */}
+      {/* ── STATEMENT BAND ── */}
+      <section className="relative overflow-hidden border-y border-[oklch(1_0_0_/_0.06)] bg-panel px-[clamp(20px,5vw,64px)] py-[clamp(64px,9vw,104px)]">
+        <div
+          data-reveal=""
+          className="mx-auto max-w-[900px] text-center font-display text-[clamp(26px,3.6vw,46px)] font-semibold leading-[1.12] tracking-[-1.2px] [text-wrap:balance]"
+        >
+          Most tools trust the link. <span className="text-iris">Yapper trusts the person</span> —
+          every cursor is a real, logged-in identity you can see and revoke.
+        </div>
+      </section>
+
+      {/* ── FEATURES (asymmetric editorial grid, not identical cards) ── */}
       <section
         id="features"
-        className="bg-paper px-[clamp(20px,5vw,64px)] py-[clamp(72px,10vw,112px)]"
+        className="bg-paper px-[clamp(20px,5vw,64px)] py-[clamp(80px,11vw,120px)]"
       >
-        <div className="mx-auto max-w-[1200px]">
-          <div className="mb-[56px] max-w-[560px]">
-            <p className={`${EYEBROW} mb-[12px] text-brand`}>What you get</p>
-            <h2 className="mb-[16px] font-display text-[clamp(30px,3.5vw,44px)] font-extrabold leading-[1.08] tracking-[-1.5px] text-ink-fg [text-wrap:pretty]">
+        <div className="mx-auto grid max-w-[1200px] gap-[clamp(40px,6vw,72px)] lg:grid-cols-[0.82fr_1.18fr]">
+          {/* Left: sticky heading block */}
+          <div data-reveal="" className="lg:sticky lg:top-[104px] lg:self-start">
+            <h2 className="font-display text-[clamp(30px,3.6vw,48px)] font-extrabold leading-[1.04] tracking-[-1.4px] text-ink-fg [text-wrap:balance]">
               Everything you need. Nothing you don&apos;t.
             </h2>
-            <p className="text-[17px] leading-[1.65] text-subtle">
-              Built for teams who move fast but still need to know who&apos;s in the room and who
-              can touch what.
+            <p className="mt-[18px] max-w-[380px] text-[17px] leading-[1.6] text-subtle [text-wrap:pretty]">
+              Built for people who move fast but still need to know who&apos;s in the room and who
+              can touch what. No feature bloat — just the collaboration primitives, done right.
             </p>
-          </div>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-[20px]">
-            {features.map((f) => (
-              <div
-                key={f.title}
-                data-card=""
-                className="rounded-[14px] border border-line bg-surface p-[28px] shadow-[0_1px_4px_oklch(0_0_0_/_0.04)] transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-[5px] hover:border-[oklch(0.7_0.02_48)] hover:shadow-[0_14px_36px_oklch(0_0_0_/_0.09)]"
+            <a
+              href="#why"
+              className="group mt-[26px] inline-flex items-center gap-[8px] text-[15px] font-semibold text-brand no-underline transition-colors hover:text-ink-fg"
+            >
+              See what makes it different
+              <svg
+                width="16"
+                height="12"
+                viewBox="0 0 16 12"
+                fill="none"
+                aria-hidden="true"
+                className="transition-transform duration-200 group-hover:translate-x-[3px]"
               >
-                <div
-                  className="mb-[16px] flex h-[42px] w-[42px] items-center justify-center rounded-[11px]"
-                  style={{ background: f.iconBg }}
-                >
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                    {f.icon}
-                  </svg>
-                </div>
-                <div className="mb-[7px] font-display text-[16px] font-bold tracking-[-0.3px] text-ink-fg">
-                  {f.title}
-                </div>
-                <p className="text-[14px] leading-[1.65] text-subtle">{f.body}</p>
-              </div>
-            ))}
+                <path
+                  d="M2 6h11M9 2l4 4-4 4"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </a>
+          </div>
+
+          {/* Right: two flagship tiles + a divided list of the rest */}
+          <div className="grid gap-[16px]">
+            <div className="grid gap-[16px] sm:grid-cols-2">
+              {features
+                .filter((f) => f.wide)
+                .map((f) => (
+                  <div
+                    key={f.title}
+                    data-card=""
+                    className={`group rounded-[18px] border border-line bg-surface p-[28px] transition-[transform,border-color,box-shadow] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[4px] hover:border-brand/35 ${CARD_REST} ${CARD_HOVER}`}
+                  >
+                    <div className="mb-[18px] flex h-[46px] w-[46px] items-center justify-center rounded-[13px] bg-brand/[0.1] text-brand transition-all duration-200 group-hover:scale-105 group-hover:bg-brand group-hover:text-white group-hover:shadow-[0_8px_20px_oklch(0.47_0.15_275_/_0.35)]">
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        {f.icon}
+                      </svg>
+                    </div>
+                    <div className="mb-[8px] font-display text-[19px] font-bold tracking-[-0.3px] text-ink-fg">
+                      {f.title}
+                    </div>
+                    <p className="text-[14px] leading-[1.6] text-subtle">{f.body}</p>
+                  </div>
+                ))}
+            </div>
+
+            <div
+              className={`overflow-hidden rounded-[18px] border border-line bg-surface ${CARD_REST}`}
+            >
+              {features
+                .filter((f) => !f.wide)
+                .map((f) => (
+                  <div
+                    key={f.title}
+                    data-card=""
+                    className="group flex items-start gap-[16px] border-b border-line px-[26px] py-[21px] transition-colors last:border-b-0 hover:bg-iris-soft/70"
+                  >
+                    <div className="mt-[1px] flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] bg-brand/[0.1] text-brand transition-all duration-200 group-hover:bg-brand group-hover:text-white">
+                      <svg
+                        width="19"
+                        height="19"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        {f.icon}
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="mb-[3px] text-[15px] font-bold tracking-[-0.2px] text-ink-fg">
+                        {f.title}
+                      </div>
+                      <p className="text-[14px] leading-[1.55] text-subtle">{f.body}</p>
+                    </div>
+                  </div>
+                ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* ── PRESENCE SPOTLIGHT ── */}
-      <section className="relative overflow-hidden bg-ink px-[clamp(20px,5vw,64px)] py-[clamp(72px,10vw,112px)]">
+      <section className="relative overflow-hidden bg-ink px-[clamp(20px,5vw,64px)] py-[clamp(80px,11vw,120px)]">
         <div className="lp-presence-glow pointer-events-none absolute inset-0" />
-        <div className="relative z-[1] mx-auto flex max-w-[1200px] flex-wrap items-center gap-[clamp(40px,6vw,80px)]">
-          <div className="max-w-[480px] flex-[1_1_300px]">
-            <p className={`${EYEBROW} mb-[14px] text-ablue`}>Live presence</p>
-            <h2 className="mb-[18px] font-display text-[clamp(28px,3.2vw,42px)] font-extrabold leading-[1.08] tracking-[-1.5px] [text-wrap:pretty]">
+        <div className="relative z-[1] mx-auto grid max-w-[1200px] items-center gap-[clamp(40px,6vw,80px)] lg:grid-cols-2">
+          <div data-reveal="" className="max-w-[480px]">
+            <h2 className="mb-[18px] font-display text-[clamp(28px,3.4vw,44px)] font-extrabold leading-[1.06] tracking-[-1.4px] [text-wrap:balance]">
               See every cursor.
               <br />
               Know every edit.
             </h2>
-            <p className="mb-[28px] text-[16px] leading-[1.7] text-[oklch(0.65_0_0)] [text-wrap:pretty]">
+            <p className="mb-[28px] text-[16px] leading-[1.7] text-[oklch(0.72_0.01_275)] [text-wrap:pretty]">
               Every collaborator&apos;s cursor and text selection appears live — color-coded with
               their real name. No anonymous ghosts. No guessing. You always know who&apos;s touching
               what.
             </p>
-            <div className="flex flex-col gap-[12px]">
+            <div className="flex flex-col gap-[13px]">
               {[
                 "Editors see each other's cursors move in real time",
                 "Selected text shows up highlighted in the selector's color",
@@ -533,37 +598,39 @@ export default function LandingPage() {
               ))}
             </div>
           </div>
-          <div className="max-w-[500px] flex-[1_1_320px]">
-            <div className="overflow-hidden rounded-[16px] border border-[oklch(1_0_0_/_0.08)] bg-panel shadow-[0_20px_60px_oklch(0_0_0_/_0.5)]">
+          <div data-reveal="" className="justify-self-center lg:justify-self-end">
+            <div
+              className={`w-[min(500px,92vw)] overflow-hidden rounded-[18px] border border-[oklch(1_0_0_/_0.08)] bg-panel ${PANEL_DARK}`}
+            >
               <div className="flex items-center justify-between border-b border-[oklch(1_0_0_/_0.06)] bg-panel-2 px-[18px] py-[14px]">
                 <div>
                   <div className="font-display text-[14px] font-bold tracking-[-0.3px]">
                     Product Roadmap
                   </div>
-                  <div className="mt-[2px] flex items-center gap-[5px] text-[11px] text-[oklch(0.5_0_0)]">
+                  <div className="mt-[2px] flex items-center gap-[5px] text-[11px] text-[oklch(0.55_0.01_275)]">
                     <span className="inline-block h-[6px] w-[6px] rounded-full bg-agreen" />3 people
                     editing now
                   </div>
                 </div>
                 <div className="flex items-center gap-[8px]">
-                  <Avatar letter="S" bg="#ff7b4e" border="oklch(0.2520 0 0)" size={28} />
+                  <Avatar letter="S" bg="#ff7b4e" border="oklch(0.25 0.02 275)" size={28} />
                   <Avatar
                     letter="K"
-                    bg="oklch(0.4341 0.0392 41.9938)"
-                    border="oklch(0.2520 0 0)"
+                    bg="oklch(0.62 0.15 278)"
+                    border="oklch(0.25 0.02 275)"
                     size={28}
                   />
                   <Avatar
                     letter="D"
                     bg="#22d3a5"
-                    color="oklch(0.1776 0 0)"
-                    border="oklch(0.2520 0 0)"
+                    color="oklch(0.17 0.015 275)"
+                    border="oklch(0.25 0.02 275)"
                     size={28}
                   />
                 </div>
               </div>
               <div className="border-b border-[oklch(1_0_0_/_0.05)] px-[18px] py-[14px]">
-                <div className="mb-[10px] text-[10px] font-bold uppercase tracking-[0.09em] text-[oklch(0.4_0_0)]">
+                <div className="mb-[10px] text-[10px] font-bold uppercase tracking-[0.09em] text-[oklch(0.5_0.02_282)]">
                   Active now
                 </div>
                 <div className="flex flex-col gap-[8px]">
@@ -576,15 +643,15 @@ export default function LandingPage() {
                   />
                   <ActiveRow
                     letter="K"
-                    bg="oklch(0.4341 0.0392 41.9938)"
+                    bg="oklch(0.62 0.15 278)"
                     name="Kira Patel"
                     meta="kira@acme.io · editing"
-                    dot="oklch(0.4341 0.0392 41.9938)"
+                    dot="oklch(0.62 0.15 278)"
                   />
                   <ActiveRow
                     letter="D"
                     bg="#22d3a5"
-                    color="oklch(0.1776 0 0)"
+                    color="oklch(0.17 0.015 275)"
                     name="Dev Okoro"
                     meta="dev@acme.io · viewing"
                     dot="#22d3a5"
@@ -593,7 +660,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="px-[18px] pt-[14px] pb-[18px]">
-                <div className="mb-[4px] text-[12px] leading-[1.7] text-[oklch(0.72_0_0)]">
+                <div className="mb-[4px] text-[12px] leading-[1.7] text-[oklch(0.74_0.01_275)]">
                   Q2 takeaways:{" "}
                   <span className="rounded-[2px] bg-[#ff7b4e28] py-px text-fg">
                     mobile onboarding
@@ -606,11 +673,11 @@ export default function LandingPage() {
                   />{" "}
                   needs a rethink.
                 </div>
-                <div className="text-[12px] leading-[1.7] text-[oklch(0.72_0_0)]">
+                <div className="text-[12px] leading-[1.7] text-[oklch(0.74_0.01_275)]">
                   Auth conversion down 18%
                   <Cursor
                     name="Kira"
-                    color="oklch(0.4341 0.0392 41.9938)"
+                    color="oklch(0.62 0.15 278)"
                     small
                     blink="caret-blink 1s step-end 0.5s infinite"
                   />{" "}
@@ -622,161 +689,155 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── COMPARISON ── */}
-      <section id="why" className="bg-paper px-[clamp(20px,5vw,64px)] py-[clamp(72px,10vw,112px)]">
-        <div className="mx-auto max-w-[1200px]">
-          <div className="mx-auto mb-[56px] max-w-[600px] text-center">
-            <p className={`${EYEBROW} mb-[12px] text-brand`}>What makes it different</p>
-            <h2 className="font-display text-[clamp(28px,3.2vw,42px)] font-extrabold leading-[1.08] tracking-[-1.5px] text-ink-fg [text-wrap:pretty]">
+      {/* ── COMPARISON (unified split, not twin cards) ── */}
+      <section id="why" className="bg-paper px-[clamp(20px,5vw,64px)] py-[clamp(80px,11vw,120px)]">
+        <div className="mx-auto max-w-[960px]">
+          <div data-reveal="" className="mx-auto mb-[52px] max-w-[600px] text-center">
+            <h2 className="font-display text-[clamp(28px,3.4vw,44px)] font-extrabold leading-[1.06] tracking-[-1.4px] text-ink-fg [text-wrap:balance]">
               Collab without the guesswork.
             </h2>
-            <p className="mt-[14px] text-[17px] leading-[1.65] text-subtle">
+            <p className="mt-[14px] text-[17px] leading-[1.6] text-subtle">
               Most tools trust the link. Yapper trusts the person.
             </p>
           </div>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] items-start gap-[24px]">
-            {/* Typical tools */}
-            <div className="rounded-[16px] border border-line bg-surface p-[32px]">
-              <div className="mb-[24px] flex items-center gap-[10px] border-b border-[oklch(0.9_0_0)] pb-[20px]">
-                <div className="flex h-[36px] w-[36px] items-center justify-center rounded-[9px] bg-[oklch(0.94_0_0)]">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <div
+            data-reveal=""
+            className={`overflow-hidden rounded-[20px] border border-line bg-surface ${CARD_REST}`}
+          >
+            {/* header row */}
+            <div className="grid grid-cols-[1fr_1fr] border-b border-line">
+              <div className="flex items-center gap-[10px] px-[clamp(18px,3vw,30px)] py-[20px]">
+                <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[8px] bg-[oklch(0.95_0.004_275)] text-[oklch(0.55_0.01_275)]">
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                     <path
                       d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Z"
-                      stroke="oklch(0.6 0 0)"
-                      strokeWidth="1.6"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
                     />
                     <path
-                      d="M8 5v3.5L10 10"
-                      stroke="oklch(0.6 0 0)"
-                      strokeWidth="1.6"
+                      d="M5 8l2 2 4-4"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
                   </svg>
-                </div>
-                <div className="font-display text-[16px] font-bold tracking-[-0.3px] text-[oklch(0.6_0_0)]">
+                </span>
+                <span className="font-display text-[14px] font-bold tracking-[-0.2px] text-subtle sm:text-[15px]">
                   Typical collab tools
+                </span>
+              </div>
+              <div className="flex items-center gap-[10px] border-l border-line bg-iris-soft/50 px-[clamp(18px,3vw,30px)] py-[20px]">
+                <LogoMark size={30} radius={8} />
+                <span className="font-display text-[14px] font-bold tracking-[-0.2px] text-ink-fg sm:text-[15px]">
+                  Yapper
+                </span>
+              </div>
+            </div>
+            {/* rows */}
+            {comparisonRows.map((row, i) => (
+              <div
+                key={row.yapper}
+                className={`grid grid-cols-[1fr_1fr] ${i < comparisonRows.length - 1 ? "border-b border-line" : ""}`}
+              >
+                <div className="flex items-start gap-[11px] px-[clamp(18px,3vw,30px)] py-[18px]">
+                  <span className="mt-[1px] shrink-0 text-[15px] font-bold leading-[1.4] text-[oklch(0.72_0.01_275)]">
+                    ✗
+                  </span>
+                  <span className="text-[14px] leading-[1.5] text-subtle">{row.typical}</span>
+                </div>
+                <div className="flex items-start gap-[11px] border-l border-line bg-iris-soft/50 px-[clamp(18px,3vw,30px)] py-[18px]">
+                  <span className="mt-[1px] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-brand text-white">
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none" aria-hidden="true">
+                      <path
+                        d="M1 4l2.5 2.5L9 1"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  <span className="text-[14px] font-medium leading-[1.5] text-ink-fg">
+                    {row.yapper}
+                  </span>
                 </div>
               </div>
-              <div className="flex flex-col gap-[14px]">
-                <ConRow>
-                  <strong className="font-semibold text-[oklch(0.5_0_0)]">Anonymous cursors</strong>{" "}
-                  — a color, no name, no accountability
-                </ConRow>
-                <ConRow>
-                  Anyone with the link can open and edit —{" "}
-                  <strong className="font-semibold text-[oklch(0.5_0_0)]">no login required</strong>
-                </ConRow>
-                <ConRow>
-                  Revoke by deleting or rotating the link —{" "}
-                  <strong className="font-semibold text-[oklch(0.5_0_0)]">
-                    hope they don&apos;t have a copy
-                  </strong>
-                </ConRow>
-                <ConRow>
-                  <strong className="font-semibold text-[oklch(0.5_0_0)]">No record</strong> of who
-                  has ever opened the document
-                </ConRow>
-              </div>
-            </div>
-            {/* Yapper */}
-            <div className="rounded-[16px] border border-cream/30 bg-ink p-[32px] shadow-[0_0_0_1px_oklch(0.9247_0.0524_66.1732_/_0.06),0_8px_32px_oklch(0.4341_0.0392_41.9938_/_0.12)]">
-              <div className="mb-[24px] flex items-center gap-[10px] border-b border-[oklch(1_0_0_/_0.07)] pb-[20px]">
-                <LogoMark size={36} />
-                <div className="font-display text-[16px] font-bold tracking-[-0.3px]">Yapper</div>
-              </div>
-              <div className="flex flex-col gap-[14px]">
-                <ProRow>
-                  <strong className="font-semibold text-fg">Real name behind every cursor</strong> —
-                  Google or GitHub identity, always
-                </ProRow>
-                <ProRow>
-                  <strong className="font-semibold text-fg">Login required</strong> — no anonymous
-                  collaborators, ever
-                </ProRow>
-                <ProRow>
-                  <strong className="font-semibold text-fg">One click makes it private</strong> —
-                  everyone disconnects instantly, link rotates
-                </ProRow>
-                <ProRow>
-                  <strong className="font-semibold text-fg">Full collaborator list</strong> —
-                  tracked from the moment they first open the note
-                </ProRow>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ── MAKE PRIVATE ── */}
-      <section className="relative overflow-hidden bg-ink px-[clamp(20px,5vw,64px)] py-[clamp(72px,10vw,112px)]">
+      <section className="relative overflow-hidden bg-ink px-[clamp(20px,5vw,64px)] py-[clamp(80px,11vw,120px)]">
         <div className="lp-private-glow pointer-events-none absolute inset-0" />
-        <div className="lp-grid-faint pointer-events-none absolute inset-0" />
-        <div className="relative z-[1] mx-auto flex max-w-[1200px] flex-wrap items-center gap-[clamp(40px,6vw,80px)]">
-          <div className="max-w-[480px] flex-[1_1_300px]">
-            <p className={`${EYEBROW} mb-[14px] text-cream`}>Owner control</p>
-            <h2 className="mb-[18px] font-display text-[clamp(28px,3.2vw,42px)] font-extrabold leading-[1.08] tracking-[-1.5px] [text-wrap:pretty]">
+        <div className="lp-grid-faint pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_70%_60%_at_30%_50%,black,transparent)]" />
+        <div className="relative z-[1] mx-auto grid max-w-[1200px] items-center gap-[clamp(40px,6vw,80px)] lg:grid-cols-2">
+          <div data-reveal="" className="max-w-[480px]">
+            <h2 className="mb-[18px] font-display text-[clamp(28px,3.4vw,44px)] font-extrabold leading-[1.06] tracking-[-1.4px] [text-wrap:balance]">
               Privacy isn&apos;t a setting.
               <br />
               It&apos;s a switch.
             </h2>
-            <p className="mb-[28px] text-[16px] leading-[1.7] text-[oklch(0.65_0_0)] [text-wrap:pretty]">
+            <p className="mb-[28px] text-[16px] leading-[1.7] text-[oklch(0.72_0.01_275)] [text-wrap:pretty]">
               One click. Instant disconnect. The share link rotates, every collaborator is marked
               revoked, and the note is yours alone — while you stay connected the whole time.
             </p>
-            <div className="flex flex-col gap-[12px]">
+            <div className="flex flex-col gap-[13px]">
               {[
                 "One access level per note: private, view-only, or edit",
                 "Collaborators disconnected in real time — they see the reason",
                 "The share link rotates — the old one never works again",
               ].map((line) => (
                 <div key={line} className={CHECK_ROW}>
-                  <CheckBullet bg="oklch(0.9247 0.0524 66.1732)" stroke="oklch(0.2435 0 0)" />
+                  <CheckBullet bg="oklch(0.7 0.13 280)" />
                   <span className={BULLET_TEXT}>{line}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="max-w-[440px] flex-[1_1_320px]">
-            <div className="flex flex-col gap-[14px]">
-              <div className="overflow-hidden rounded-[14px] border border-[oklch(1_0_0_/_0.09)] bg-panel shadow-[0_12px_40px_oklch(0_0_0_/_0.4)]">
+          <div data-reveal="" className="justify-self-center lg:justify-self-end">
+            <div className="flex w-[min(440px,92vw)] flex-col gap-[14px]">
+              <div
+                className={`overflow-hidden rounded-[16px] border border-[oklch(1_0_0_/_0.09)] bg-panel ${PANEL_DARK}`}
+              >
                 <div className="border-b border-[oklch(1_0_0_/_0.06)] px-[20px] py-[18px]">
                   <div className="mb-[3px] flex items-center justify-between">
                     <div className="font-display text-[15px] font-bold tracking-[-0.3px]">
                       Project Brief
                     </div>
                     <div className="flex items-center">
-                      <Avatar letter="J" bg="#ff7b4e" border="oklch(0.2134 0 0)" size={22} />
-                      <Avatar letter="M" bg="#4ea8ff" border="oklch(0.2134 0 0)" size={22} />
+                      <Avatar letter="J" bg="#ff7b4e" border="oklch(0.21 0.018 275)" size={22} />
+                      <Avatar letter="M" bg="#4ea8ff" border="oklch(0.21 0.018 275)" size={22} />
                       <Avatar
                         letter="A"
                         bg="#22d3a5"
-                        color="oklch(0.1776 0 0)"
-                        border="oklch(0.2134 0 0)"
+                        color="oklch(0.17 0.015 275)"
+                        border="oklch(0.21 0.018 275)"
                         size={22}
                       />
                     </div>
                   </div>
-                  <div className="text-[11px] text-[oklch(0.5_0_0)]">
+                  <div className="text-[11px] text-[oklch(0.55_0.01_275)]">
                     Shared with 3 collaborators · Edit access
                   </div>
                 </div>
                 <div className="px-[20px] py-[16px]">
-                  <div className="mb-[10px] text-[11px] font-bold uppercase tracking-[0.08em] text-[oklch(0.4_0_0)]">
+                  <div className="mb-[10px] text-[11px] font-bold uppercase tracking-[0.08em] text-[oklch(0.5_0.02_282)]">
                     Access level
                   </div>
                   <div className="mb-[14px] flex gap-[8px]">
-                    <div className="flex-1 rounded-[8px] border border-[oklch(1_0_0_/_0.07)] p-[8px] text-center text-[12px] font-medium text-[oklch(0.5_0_0)]">
+                    <div className="flex-1 rounded-[8px] border border-[oklch(1_0_0_/_0.07)] p-[8px] text-center text-[12px] font-medium text-[oklch(0.55_0.01_275)]">
                       Private
                     </div>
-                    <div className="flex-1 rounded-[8px] border border-[oklch(1_0_0_/_0.07)] p-[8px] text-center text-[12px] font-medium text-[oklch(0.5_0_0)]">
+                    <div className="flex-1 rounded-[8px] border border-[oklch(1_0_0_/_0.07)] p-[8px] text-center text-[12px] font-medium text-[oklch(0.55_0.01_275)]">
                       View only
                     </div>
-                    <div className="flex-1 rounded-[8px] border-[1.5px] border-cream/50 bg-cream/[0.08] p-[8px] text-center text-[12px] font-semibold text-cream">
+                    <div className="flex-1 rounded-[8px] border-[1.5px] border-iris/50 bg-iris/[0.1] p-[8px] text-center text-[12px] font-semibold text-iris">
                       Edit
                     </div>
                   </div>
-                  <div className="flex cursor-pointer items-center justify-between rounded-[9px] border border-[rgba(220,40,40,0.22)] bg-[rgba(220,40,40,0.1)] px-[14px] py-[11px] transition-colors hover:bg-[rgba(220,40,40,0.18)]">
+                  <div className="group flex cursor-pointer items-center justify-between rounded-[9px] border border-[oklch(0.63_0.2_20_/_0.24)] bg-[oklch(0.63_0.2_20_/_0.1)] px-[14px] py-[11px] transition-colors hover:bg-[oklch(0.63_0.2_20_/_0.18)]">
                     <div className="flex items-center gap-[8px]">
                       <svg
                         width="14"
@@ -805,7 +866,14 @@ export default function LandingPage() {
                         Make private now
                       </span>
                     </div>
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      aria-hidden="true"
+                      className="transition-transform duration-200 group-hover:translate-x-[3px]"
+                    >
                       <path
                         d="M2 6h8M6 3l3 3-3 3"
                         stroke="#f87070"
@@ -817,8 +885,8 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-start gap-[12px] rounded-[12px] border border-[rgba(220,40,40,0.2)] bg-[oklch(0.17_0.015_30)] px-[18px] py-[16px]">
-                <div className="mt-px flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full border border-[rgba(220,40,40,0.3)] bg-[rgba(220,40,40,0.15)]">
+              <div className="flex items-start gap-[12px] rounded-[12px] border border-[oklch(0.63_0.2_20_/_0.22)] bg-[oklch(0.2_0.03_20)] px-[18px] py-[16px]">
+                <div className="mt-px flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-full border border-[oklch(0.63_0.2_20_/_0.3)] bg-[oklch(0.63_0.2_20_/_0.15)]">
                   <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
                     <rect
                       x="2"
@@ -841,12 +909,12 @@ export default function LandingPage() {
                   <div className="mb-[3px] text-[13px] font-semibold text-danger">
                     Note made private by owner.
                   </div>
-                  <div className="text-[12px] leading-[1.5] text-[oklch(0.4_0.04_30)]">
+                  <div className="text-[12px] leading-[1.5] text-[oklch(0.68_0.06_20)]">
                     You&apos;ve been disconnected. The owner has made this note private.
                   </div>
                 </div>
               </div>
-              <p className="text-center text-[11px] tracking-[0.02em] text-[oklch(0.4_0_0)]">
+              <p className="text-center text-[11px] tracking-[0.02em] text-[oklch(0.5_0.01_275)]">
                 ↑ What every other collaborator sees, instantly.
               </p>
             </div>
@@ -855,52 +923,55 @@ export default function LandingPage() {
       </section>
 
       {/* ── CTA ── */}
-      <section className="bg-paper px-[clamp(20px,5vw,64px)] py-[clamp(80px,12vw,120px)]">
-        <div className="mx-auto max-w-[640px] text-center">
-          <h2 className="mb-[18px] font-display text-[clamp(32px,4vw,52px)] font-extrabold leading-[1.06] tracking-[-2px] text-ink-fg [text-wrap:pretty]">
-            Start writing. Together.
-          </h2>
-          <p className="mb-[36px] text-[17px] leading-[1.65] text-subtle [text-wrap:pretty]">
-            Sign in with your Google or GitHub account. Every note starts private. Share when
-            you&apos;re ready — pull it back whenever you want.
-          </p>
-          <div className="flex flex-wrap justify-center gap-[14px]">
-            <button type="button" onClick={() => signInWith("google")} className={CTA_GOOGLE}>
-              <GoogleIcon size={20} /> Continue with Google
-            </button>
-            <button type="button" onClick={() => signInWith("github")} className={CTA_GITHUB}>
-              <GitHubIcon size={20} /> Continue with GitHub
-            </button>
+      <section className="relative overflow-hidden bg-paper px-[clamp(20px,5vw,64px)] py-[clamp(88px,13vw,128px)]">
+        <div className="mx-auto max-w-[680px] text-center">
+          <div
+            data-reveal=""
+            className="rounded-[24px] border border-line bg-surface px-[clamp(28px,5vw,56px)] py-[clamp(40px,6vw,64px)] shadow-[0_2px_8px_oklch(0.2_0.02_275_/_0.05),0_30px_70px_oklch(0.47_0.15_275_/_0.1)]"
+          >
+            <h2 className="mb-[18px] font-display text-[clamp(32px,4.2vw,54px)] font-extrabold leading-[1.02] tracking-[-1.8px] text-ink-fg [text-wrap:balance]">
+              Start writing. Together.
+            </h2>
+            <p className="mx-auto mb-[36px] max-w-[440px] text-[17px] leading-[1.6] text-subtle [text-wrap:pretty]">
+              Sign in with Google or GitHub. Every note starts private — share when you&apos;re
+              ready, pull it back whenever you want.
+            </p>
+            <div className="flex flex-wrap justify-center gap-[14px]">
+              <button type="button" onClick={() => signInWith("google")} className={CTA_GOOGLE}>
+                <GoogleIcon size={20} /> Continue with Google
+              </button>
+              <button type="button" onClick={() => signInWith("github")} className={CTA_GITHUB}>
+                <GitHubIcon size={20} /> Continue with GitHub
+              </button>
+            </div>
+            <p className="mt-[22px] text-[13px] text-subtle">
+              No anonymous access. Every collaborator is a real, tracked identity.
+            </p>
           </div>
-          <p className="mt-[20px] text-[13px] text-[oklch(0.6_0_0)]">
-            No anonymous access. Every collaborator is a real, tracked identity.
-          </p>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-[oklch(1_0_0_/_0.06)] bg-ink px-[clamp(20px,5vw,64px)] py-[36px]">
+      <footer className="border-t border-[oklch(1_0_0_/_0.06)] bg-ink px-[clamp(20px,5vw,64px)] py-[38px]">
         <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-[16px]">
           <div className="flex items-center gap-[9px]">
             <LogoMark size={26} radius={7} />
-            <span className="font-display text-[16px] font-extrabold tracking-[-0.4px]">
-              Yapper
-            </span>
+            <span className="font-display text-[16px] font-bold tracking-[-0.4px]">Yapper</span>
           </div>
-          <p className="text-[13px] text-[oklch(0.4_0_0)]">
+          <p className="text-[13px] text-[oklch(0.5_0.01_275)]">
             © 2025 Yapper. Real notes. Real identities. Real control.
           </p>
           {/* Routes don't exist yet — they're the intended destinations (see implementation.md TODO). */}
           <div className="flex gap-[20px]">
             <a
               href="/privacy"
-              className="text-[13px] text-[oklch(0.4_0_0)] no-underline transition-colors hover:text-[oklch(0.7_0_0)]"
+              className="text-[13px] text-[oklch(0.5_0.01_275)] no-underline transition-colors hover:text-[oklch(0.75_0.01_275)]"
             >
               Privacy
             </a>
             <a
               href="/terms"
-              className="text-[13px] text-[oklch(0.4_0_0)] no-underline transition-colors hover:text-[oklch(0.7_0_0)]"
+              className="text-[13px] text-[oklch(0.5_0.01_275)] no-underline transition-colors hover:text-[oklch(0.75_0.01_275)]"
             >
               Terms
             </a>
@@ -974,7 +1045,7 @@ function ActiveRow({
       </div>
       <div className="flex-1">
         <div className="text-[13px] font-semibold text-fg">{name}</div>
-        <div className="text-[11px] text-[oklch(0.5_0_0)]">{meta}</div>
+        <div className="text-[11px] text-[oklch(0.55_0.01_275)]">{meta}</div>
       </div>
       <div
         className="h-2 w-2 rounded-full"
@@ -1023,23 +1094,5 @@ function Cursor({
         </span>
       </span>
     </span>
-  );
-}
-
-function ConRow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className={CHECK_ROW}>
-      <span className="shrink-0 text-[16px] font-bold leading-[1.4] text-[oklch(0.7_0_0)]">✗</span>
-      <span className="text-[14px] leading-[1.55] text-[oklch(0.6_0_0)]">{children}</span>
-    </div>
-  );
-}
-
-function ProRow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className={CHECK_ROW}>
-      <span className="shrink-0 text-[16px] font-bold leading-[1.4] text-agreen">✓</span>
-      <span className="text-[14px] leading-[1.55] text-[oklch(0.82_0_0)]">{children}</span>
-    </div>
   );
 }
