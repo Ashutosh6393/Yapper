@@ -659,9 +659,9 @@ flowchart TD
   <!-- DEPLOY -->
   <section class="card" id="deploy">
     <h2>Deployment</h2>
-    <p><strong>Now — local-dev-first.</strong> Docker Compose runs Postgres + Redis; all three apps run via <code>turbo dev</code>. The Redis fanout works the same with a single instance, so the realtime path is exercised locally.</p>
+    <p><strong>Now — local-dev-first.</strong> Postgres (Neon) and Redis (Upstash) are managed services; all three apps run locally via <code>turbo dev</code> against them. The Redis fanout works the same with a single instance, so the realtime path is exercised locally.</p>
     <ul class="tight">
-      <li><strong>Phase 1 (current):</strong> Docker Compose (Postgres + Redis) + <code>turbo dev</code> for web/api/socket.</li>
+      <li><strong>Phase 1 (current):</strong> <code>turbo dev</code> for web/api/socket against managed Postgres + Redis. CI (GitHub Actions) builds a Docker image per app and pushes it to GHCR, tagged <code>:&lt;sha&gt;</code> and <code>:latest</code>.</li>
       <li><strong>Phase 2:</strong> single-platform containers (Railway / Render) — one container per app, managed Postgres + Redis.</li>
       <li><strong>Phase 3:</strong> split topology — <code>web</code> on Vercel, <code>api</code> + <code>socket</code> as containers, scaled horizontally. The Redis fanout is what makes multiple <code>socket</code> instances coherent.</li>
     </ul>

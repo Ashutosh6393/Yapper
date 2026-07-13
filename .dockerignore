@@ -15,4 +15,3 @@ docs
 agents
 *.md
 architecture.html
-docker-compose.yml
