@@ -15,7 +15,7 @@ describe("permissionSchema", () => {
 
 describe("labelColorSchema", () => {
   it("accepts each palette key", () => {
-    for (const c of ["slate", "rose", "amber", "emerald", "sky", "violet"]) {
+    for (const c of ["slate", "rose", "amber", "emerald", "sky", "violet"] as const) {
       expect(labelColorSchema.parse(c)).toBe(c);
     }
   });

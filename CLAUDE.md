@@ -52,7 +52,7 @@ Architecture is a 3-app Turborepo (`web`, `api`, `socket`) plus shared `packages
 - **Frontend state/data**: **TanStack Query** owns server state (queries/mutations + caching); **Zustand** owns cross-component client/UI state (editor/collab UI, dialog toggles). Don't put server data in Zustand or UI toggles in Query.
 - **Linting & Formatting**: Biome (replaces Prettier)
 - **Testing**: Vitest (unit)
-- **Local dev**: Docker Compose (Postgres + Redis) + `turbo dev`
+- **Local dev**: `turbo dev` against remote Postgres (Neon) + Redis (Upstash); URLs come from each app's `.env`
 
 > **Frontend stack adoption (in progress):** shadcn/ui, TanStack Query, Zustand, Motion, and the `@yapper/schemas` Zod package are being introduced via `specs/09-frontend-stack` (slices 09a–09d). Until that spec is complete, parts of `apps/web` still use the older inline-style + `lib/api.ts` approach — check each app's `CLAUDE.md` and `specs/09-frontend-stack/implementation.md` for current vs. target state.
 

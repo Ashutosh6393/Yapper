@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+.git
+.github
+.turbo
+**/.turbo
+**/.next
+**/dist
+**/coverage
+.env
+**/.env
+**/.env.local
+specs
+docs
+agents
+*.md
+architecture.html
