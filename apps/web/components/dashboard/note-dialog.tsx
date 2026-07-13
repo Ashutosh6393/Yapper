@@ -47,7 +47,13 @@ export function NoteDialog({
         <DialogHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4 pr-14">
           <DialogTitle className="sr-only">{title}</DialogTitle>
           {noteId && note?.isOwner ? (
-            <AccessControl noteId={noteId} access={note.access} />
+            <AccessControl
+              noteId={noteId}
+              access={note.access}
+              // Only the engine's Dexie row carries the token; the REST fallback shape has no such field
+              // (its link comes from the share mutation's response instead).
+              shareToken={"shareToken" in note ? note.shareToken : undefined}
+            />
           ) : note && !note.isOwner ? (
             <span className="text-sm text-muted-foreground">Shared with you</span>
           ) : (
