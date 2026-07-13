@@ -3,6 +3,7 @@
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/sonner";
 import { useNoteDetail } from "../../lib/sync/reads";
 import { AccessControl } from "./access-control";
 
@@ -47,7 +48,13 @@ export function NoteDialog({
         <DialogHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4 pr-14">
           <DialogTitle className="sr-only">{title}</DialogTitle>
           {noteId && note?.isOwner ? (
-            <AccessControl noteId={noteId} access={note.access} />
+            <AccessControl
+              noteId={noteId}
+              access={note.access}
+              // Only the engine's Dexie row carries the token; the REST fallback shape has no such field
+              // (its link comes from the share mutation's response instead).
+              shareToken={"shareToken" in note ? note.shareToken : undefined}
+            />
           ) : note && !note.isOwner ? (
             <span className="text-sm text-muted-foreground">Shared with you</span>
           ) : (
@@ -60,7 +67,17 @@ export function NoteDialog({
               key={noteId}
               noteId={noteId}
               assumeEditable={assumeEditable}
-              onMadePrivate={note?.isOwner ? undefined : onClose}
+              // Owner-made-private kicks every other editor: close their note immediately and carry the
+              // reason out with them — the editor's in-place notice would be unmounted by `onClose`
+              // before it could be read, so the message has to outlive the dialog.
+              onMadePrivate={
+                note?.isOwner
+                  ? undefined
+                  : () => {
+                      toast.error("Note made private by owner");
+                      onClose();
+                    }
+              }
             />
           ) : (
             <div className="flex min-h-80 items-center justify-center gap-2 rounded-lg border bg-card text-sm text-muted-foreground">

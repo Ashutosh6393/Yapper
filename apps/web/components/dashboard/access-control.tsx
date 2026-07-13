@@ -21,17 +21,35 @@ const OPTIONS: { level: NoteAccess; label: string; icon: LucideIcon; hint: strin
  * disconnects collaborators (slice 07); selecting/reselecting a shared level surfaces the copyable link.
  * Mirrors ShareDialog's dual path: TanStack mutations with the sync engine off, optimistic actions on.
  */
-export function AccessControl({ noteId, access }: { noteId: string; access: NoteAccess }) {
+export function AccessControl({
+  noteId,
+  access,
+  shareToken,
+}: {
+  noteId: string;
+  access: NoteAccess;
+  /** The note's capability token (engine path: pulled into Dexie on owner rows only). */
+  shareToken?: string | null;
+}) {
   const syncOn = isSyncEngineEnabled();
   const shareNote = useShareNote(noteId);
   const makePrivate = useMakePrivate(noteId);
 
   // Optimistically highlight an in-flight change; the selected level otherwise follows server state.
   const [pending, setPending] = useState<NoteAccess | null>(null);
-  const [url, setUrl] = useState<string | null>(null);
+  const [restUrl, setRestUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const current = pending ?? access;
+
+  // The engine path never learns the token synchronously — the `setShareLevel` mutator mints it
+  // server-side, and it reaches us on the next pull. So derive the link from the note rather than from
+  // a mutation response (which is all the REST fallback has).
+  const url = syncOn
+    ? shareToken && typeof window !== "undefined"
+      ? `${window.location.origin}/share/${shareToken}`
+      : null
+    : restUrl;
   const busy = !syncOn && (shareNote.isPending || makePrivate.isPending);
 
   useEffect(() => {
@@ -46,7 +64,7 @@ export function AccessControl({ noteId, access }: { noteId: string; access: Note
     }
     try {
       const info = await shareNote.mutateAsync(level);
-      setUrl(info.url);
+      setRestUrl(info.url);
     } catch {
       setPending(null);
     }
@@ -60,7 +78,7 @@ export function AccessControl({ noteId, access }: { noteId: string; access: Note
     }
     setPending(level);
     if (level === "private") {
-      setUrl(null);
+      setRestUrl(null);
       if (syncOn) {
         engineActions.makePrivate(noteId);
         return;
@@ -129,7 +147,7 @@ export function AccessControl({ noteId, access }: { noteId: string; access: Note
         ) : null}
       </div>
 
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="self-start text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }

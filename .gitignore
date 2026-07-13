@@ -36,3 +36,6 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# spec 24b: generated post-build asset list for the offline service worker
+apps/web/public/precache.json

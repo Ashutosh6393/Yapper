@@ -37,6 +37,7 @@ export async function authorizedNotes(
     trashedAt: note.trashedAt,
     updatedAt: note.updatedAt,
     metaVersion: note.metaVersion,
+    shareToken: note.shareToken,
   };
 
   const owned = await dbx.select(cols).from(note).where(eq(note.ownerId, userId));
@@ -86,6 +87,8 @@ export async function authorizedNotes(
       updatedAt: r.updatedAt.toISOString(),
       metaVersion: r.metaVersion,
       isOwner: true,
+      // Owner rows only: the token is a capability, so it never rides on a collaborator's row below.
+      shareToken: r.shareToken,
     });
   }
   for (const r of shared) {

@@ -18,7 +18,12 @@ export interface Identity {
   name: string;
 }
 
-/** FNV-1a hash → stable hue; fixed S/L keeps cursor labels readable against the editor background. */
+/**
+ * FNV-1a hash → stable hue, at a fixed OKLCH lightness/chroma. OKLCH is perceptually uniform, so every
+ * user lands at the same apparent lightness whatever the hue: the caret's white-on-color name flag
+ * holds ≥4.5:1 contrast for all of them (HSL does not — `hsl(60, 70%, 45%)` is a bright yellow that
+ * white text disappears on), and the caret stays legible on both the light and dark editor surface.
+ */
 export function colorFromUserId(userId: string): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < userId.length; i++) {
@@ -26,7 +31,7 @@ export function colorFromUserId(userId: string): string {
     hash = Math.imul(hash, 0x01000193);
   }
   const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 70%, 45%)`;
+  return `oklch(0.52 0.15 ${hue})`;
 }
 
 /** Build the awareness `user` from server-verified identity only — client fields are ignored. */

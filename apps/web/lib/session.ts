@@ -50,6 +50,10 @@ export function usePersistedSession() {
   // Mirror the authoritative session to storage; clear it on a confirmed sign-out. We deliberately do
   // NOT push `live.data` into `cached` — `data` below already prefers it — so an unstable session
   // reference (e.g. a hook that returns a fresh object each render) can't loop this into a setState storm.
+  //
+  // A *failed* fetch (offline, 5xx) settles the same way a sign-out does — no data, not pending — but
+  // leaves `error` set, while an unauthenticated *response* resolves with `data: null, error: null`.
+  // Only the latter is a sign-out; clearing on the former means going offline logs the user out.
   useEffect(() => {
     if (live.data) {
       try {
@@ -57,11 +61,11 @@ export function usePersistedSession() {
       } catch {
         // ignore
       }
-    } else if (!live.isPending) {
+    } else if (!live.isPending && !live.error) {
       clearPersistedSession();
       setCached(null);
     }
-  }, [live.data, live.isPending]);
+  }, [live.data, live.isPending, live.error]);
 
   const data = live.data ?? cached;
   return { ...live, data, isPending: live.isPending && data == null };

@@ -2,14 +2,34 @@
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { warmPrecache } from "../lib/precache";
 import { getQueryClient } from "../lib/query-client";
 import { SyncEngineProvider } from "../lib/sync/provider";
+
+/**
+ * Register the service worker that serves the app shell offline, then warm its cache with the build's
+ * full asset list (spec 24b). Production only — a SW in `next dev` serves stale chunks and fights HMR.
+ *
+ * The warm-up matters as much as the registration: the SW caches assets on demand, so without it the
+ * code-split editor chunks are cached only if the user happened to open a note while online — and going
+ * offline without them is a ChunkLoadError, not an app. Both steps are non-fatal on failure.
+ */
+function useServiceWorker() {
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then(() => warmPrecache())
+      .catch(() => {});
+  }, []);
+}
 
 /** App-wide client providers: theme (light/dark via next-themes) + TanStack Query + toasts. */
 export function Providers({ children }: { children: ReactNode }) {
   const queryClient = getQueryClient();
+  useServiceWorker();
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>

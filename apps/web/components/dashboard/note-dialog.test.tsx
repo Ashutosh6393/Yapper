@@ -1,9 +1,22 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+// The stub exposes `onMadePrivate` as a button so a test can fire the owner's kick without a socket.
 vi.mock("../../app/notes/[id]/Editor", () => ({
-  Editor: ({ noteId }: { noteId: string }) => <div data-testid="editor">editor:{noteId}</div>,
+  Editor: ({ noteId, onMadePrivate }: { noteId: string; onMadePrivate?: () => void }) => (
+    <div data-testid="editor">
+      editor:{noteId}
+      {onMadePrivate ? (
+        <button type="button" onClick={onMadePrivate}>
+          kick
+        </button>
+      ) : null}
+    </div>
+  ),
 }));
+const toastError = vi.fn();
+vi.mock("@/components/ui/sonner", () => ({ toast: { error: (m: string) => toastError(m) } }));
 vi.mock("./access-control", () => ({
   AccessControl: ({ access }: { access: string }) => (
     <div data-testid="access">access:{access}</div>
@@ -40,5 +53,26 @@ describe("NoteDialog", () => {
     render(<NoteDialog noteId="n2" onClose={vi.fn()} />);
     expect(await screen.findByTestId("editor")).toBeInTheDocument();
     expect(screen.queryByTestId("access")).not.toBeInTheDocument();
+  });
+
+  it("closes a collaborator's note and tells them why when the owner makes it private", async () => {
+    useNoteMock.mockReturnValue({
+      data: { id: "n2", title: "Roadmap", access: "edit", isOwner: false },
+    });
+    const onClose = vi.fn();
+    render(<NoteDialog noteId="n2" onClose={onClose} />);
+    await userEvent.click(await screen.findByRole("button", { name: "kick" }));
+
+    expect(onClose).toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith("Note made private by owner");
+  });
+
+  it("never kicks the owner out of their own note", async () => {
+    useNoteMock.mockReturnValue({
+      data: { id: "n1", title: "Q3 Launch", access: "edit", isOwner: true },
+    });
+    render(<NoteDialog noteId="n1" onClose={vi.fn()} />);
+    await screen.findByTestId("editor");
+    expect(screen.queryByRole("button", { name: "kick" })).not.toBeInTheDocument();
   });
 });

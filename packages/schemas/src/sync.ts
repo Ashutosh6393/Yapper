@@ -28,6 +28,11 @@ export const noteMetaSchema = z.object({
   // UI — both without a `GET /:id` round-trip. `ownerId` is never sent (privacy — mirrors `GET /:id`).
   // Optional so this stays additive: an old base row missing it self-heals on the next pull.
   isOwner: z.boolean().optional(),
+  // The note's capability token, so the owner's note dialog can offer "Copy link" without a REST
+  // round-trip (the token is minted server-side by the `setShareLevel` mutator; this is the client's
+  // only channel for it). **Owner rows only** — possession of the token grants access, so the puller
+  // never sends it on a collaborator's row. Null/absent when the note is private.
+  shareToken: z.string().nullable().optional(),
 });
 export type NoteMeta = z.infer<typeof noteMetaSchema>;
 

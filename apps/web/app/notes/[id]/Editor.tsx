@@ -22,6 +22,28 @@ import { pull } from "../../../lib/sync/pull";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? "ws://localhost:1234";
 
+/**
+ * A remote collaborator's caret: a 2px bar in their stable color with their **name** flagged above it
+ * (Google-Docs/Figma style). The color rides on a `--caret-color` custom property so `globals.css`
+ * owns the whole look — including how the flag fades once the cursor goes still. The name is always
+ * rendered: presence is never color alone.
+ */
+export function renderCaret(user: AwarenessUser): HTMLElement {
+  const caret = document.createElement("span");
+  caret.className = "collaboration-carets__caret";
+  caret.style.setProperty("--caret-color", user.color);
+  const label = document.createElement("span");
+  label.className = "collaboration-carets__label";
+  label.textContent = user.name;
+  caret.appendChild(label);
+  return caret;
+}
+
+/** A remote collaborator's selection, tinted from the same `--caret-color` their caret carries. */
+export function renderCaretSelection(user: AwarenessUser) {
+  return { class: "collaboration-carets__selection", style: `--caret-color: ${user.color}` };
+}
+
 /** Shared props for the note editor (either persistence path). */
 interface EditorProps {
   noteId: string;
@@ -130,7 +152,15 @@ function NoteEditorSurface({
   const editor = useEditor({
     extensions: [
       ...buildExtensions(ydoc),
-      ...(provider ? [CollaborationCaret.configure({ provider })] : []),
+      ...(provider
+        ? [
+            CollaborationCaret.configure({
+              provider,
+              render: renderCaret,
+              selectionRender: renderCaretSelection,
+            }),
+          ]
+        : []),
       // The note's title is its first line: show an "Untitled" placeholder there while it's empty.
       Placeholder.configure({
         includeChildren: false,
@@ -148,9 +178,12 @@ function NoteEditorSurface({
     },
   });
 
+  // `updateUser` is a CollaborationCaret command, so it exists only on the shared (provider) path. A
+  // private note has no caret extension — and the identity message can still arrive while the surface
+  // is mid-handoff to `shared` — so publish awareness only once the provider is actually mounted.
   useEffect(() => {
-    if (editor && identity) editor.commands.updateUser(identity);
-  }, [editor, identity]);
+    if (editor && provider && identity) editor.commands.updateUser(identity);
+  }, [editor, provider, identity]);
 
   useEffect(() => {
     editor?.setEditable(permission === "edit");
@@ -167,7 +200,7 @@ function NoteEditorSurface({
             View only
           </Badge>
         )}
-        {editor && provider ? <Presence provider={provider} /> : null}
+        {editor && provider ? <Presence provider={provider} selfId={identity?.id} /> : null}
       </div>
       {permission === "edit" && editor ? <EditorToolbar editor={editor} /> : null}
       <EditorContent editor={editor} />
@@ -185,7 +218,20 @@ function MadePrivateNotice() {
   );
 }
 
-function Presence({ provider }: { provider: HocuspocusProvider }) {
+/** "AL" from "Ada Lovelace" — the avatar stand-in; the name always sits next to it, never alone. */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  const first = parts[0]?.[0] ?? "?";
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
+  return (first + last).toUpperCase();
+}
+
+/**
+ * Who else is in the note right now. Each collaborator carries the same stable color as their caret,
+ * so the header row and the cursor in the text read as the same person. Self is excluded — you are
+ * not news to yourself — and the row stays quiet: no row at all when you're writing alone.
+ */
+function Presence({ provider, selfId }: { provider: HocuspocusProvider; selfId?: string }) {
   const [users, setUsers] = useState<AwarenessUser[]>([]);
 
   useEffect(() => {
@@ -204,19 +250,40 @@ function Presence({ provider }: { provider: HocuspocusProvider }) {
     return () => awareness.off("change", update);
   }, [provider]);
 
-  if (users.length === 0) return null;
+  const others = users.filter((u) => u.id !== selfId);
+  if (others.length === 0) return null;
+  const shown = others.slice(0, 3);
+  const overflow = others.length - shown.length;
+
   return (
-    <div className="inline-flex flex-wrap items-center gap-2">
-      {users.map((u) => (
+    <div className="inline-flex flex-wrap items-center gap-1.5">
+      {shown.map((u) => (
         <span
           key={u.id}
-          title={u.name}
-          className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[13px]"
+          className="inline-flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-0.5 text-[13px]"
+          style={{ borderColor: `color-mix(in oklch, ${u.color} 40%, transparent)` }}
         >
-          <span className="size-2 rounded-full" style={{ background: u.color }} />
-          {u.name}
+          <span
+            aria-hidden
+            className="grid size-5 place-items-center rounded-full font-semibold text-[10px] text-white"
+            style={{ background: u.color }}
+          >
+            {initials(u.name)}
+          </span>
+          <span className="max-w-32 truncate">{u.name}</span>
         </span>
       ))}
+      {overflow > 0 && (
+        <span
+          className="rounded-full bg-muted px-2 py-0.5 text-[13px] text-muted-foreground"
+          title={others
+            .slice(3)
+            .map((u) => u.name)
+            .join(", ")}
+        >
+          +{overflow} more
+        </span>
+      )}
     </div>
   );
 }
