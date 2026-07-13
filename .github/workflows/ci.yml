@@ -3,7 +3,8 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    # TEMP(feat/ci-cd): smoke-test the image builds before merge. Revert to [main].
+    branches: [main, feat/ci-cd]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -73,7 +74,8 @@ jobs:
   images:
     name: Push ${{ matrix.app }} image
     needs: [check, test]
-    if: github.ref == 'refs/heads/main'
+    # TEMP(feat/ci-cd): was `github.ref == 'refs/heads/main'`. Revert before merge.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -95,7 +97,7 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/yapper-${{ matrix.app }}
           tags: |
             type=raw,value=${{ github.sha }}
-            type=raw,value=latest
+            type=raw,value=latest,enable={{is_default_branch}}
       - uses: docker/build-push-action@v6
         with:
           context: .
