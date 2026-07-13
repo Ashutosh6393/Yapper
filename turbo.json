@@ -1,6 +1,8 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  // Turbo runs tasks in strict env mode: anything not declared here is hidden from the task.
+  "globalPassThroughEnv": ["NODE_OPTIONS"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -11,7 +13,15 @@
       "dependsOn": ["^check-types"]
     },
     "test": {
-      "cache": false
+      "cache": false,
+      // CI supplies these from the job env; locally each app reads its own .env.
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "WEB_ORIGIN",
+        "BETTER_AUTH_URL",
+        "BETTER_AUTH_SECRET"
+      ]
     },
     "dev": {
       "cache": false,
