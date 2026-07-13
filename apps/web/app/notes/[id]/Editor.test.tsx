@@ -46,7 +46,7 @@ vi.mock("../../../lib/auth-token", () => ({ getAuthToken: () => "tok" }));
 vi.mock("@/components/ui/sonner", () => ({ toast: { error: vi.fn() } }));
 
 import { useEditorStore } from "../../../lib/stores/editor";
-import { Editor } from "./Editor";
+import { Editor, renderCaret, renderCaretSelection } from "./Editor";
 
 function identityPayload(permission: "view" | "edit") {
   return JSON.stringify({
@@ -82,5 +82,26 @@ describe("Editor (editable-first)", () => {
     act(() => hoisted.opts?.onAuthenticationFailed?.());
     expect(useEditorStore.getState().status).toBe("denied");
     expect(useEditorStore.getState().permission).toBe("view");
+  });
+});
+
+describe("remote caret", () => {
+  const user = { id: "u2", name: "Ada Lovelace", color: "oklch(0.52 0.15 210)" };
+
+  it("renders a caret carrying the collaborator's name and stable color", () => {
+    const caret = renderCaret(user);
+    expect(caret.className).toContain("collaboration-carets__caret");
+    expect(caret.style.getPropertyValue("--caret-color")).toBe(user.color);
+
+    const label = caret.querySelector(".collaboration-carets__label");
+    // Never an anonymous cursor: the name rides on the caret, not just the color.
+    expect(label?.textContent).toBe("Ada Lovelace");
+  });
+
+  it("tints a remote selection with the same collaborator color", () => {
+    expect(renderCaretSelection(user)).toEqual({
+      class: "collaboration-carets__selection",
+      style: `--caret-color: ${user.color}`,
+    });
   });
 });
