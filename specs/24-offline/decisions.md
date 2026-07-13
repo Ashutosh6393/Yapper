@@ -35,6 +35,67 @@ it replaces.
   Accepted: those routes are only useful online.
 - If the offline surface later grows to several genuinely distinct documents, revisit — the SW is one
   file and swapping it for Serwist is a contained change.
+- **Amended during implementation — we do need a build-time asset list** (see ADR-004). The "no precache
+  manifest" half of this decision was wrong; the "no dependency" half survived.
+
+---
+
+## ADR-004: Precache the build's assets from a generated manifest
+
+### Context
+
+ADR-001 claimed cache-first on `/_next/static/**` needed no precache manifest, because those assets are
+content-hashed and immutable. Immutability is about **invalidation** — and on that, the claim holds.
+It says nothing about **coverage**.
+
+Caught in browser verification: with the SW live and the server killed, `/dashboard?note=<id>` threw a
+client-side exception. The network log showed the document and 14 assets served 200 from cache, and
+**seven `/_next/static/chunks/*.js` failing** — the code-split note-dialog/editor chunks. They had never
+been fetched during the online visit (which was a plain `/dashboard`, no note opened), so cache-on-demand
+never stored them, and a missing chunk is a `ChunkLoadError`, not a degraded experience.
+
+The hole is structural, not incidental: **cache-on-demand only ever holds what an online session happened
+to request.** Next code-splits the editor, so the exact code needed to write a note offline is the code
+most likely to be absent. "It works offline if you opened a note first" is not offline support.
+
+### Options Considered
+
+1. **Eagerly `import()` the editor on dashboard load** — 3 lines, but it only patches the chunks we know
+   about today. Any future dynamic import silently re-opens the hole, offline and unnoticed.
+2. **Adopt `@serwist/next` after all** — its precache manifest is exactly the missing piece.
+3. **Generate the list ourselves** — walk `.next/static` post-build, write `public/precache.json`, and
+   have the client warm it into the SW cache on load.
+
+### Decision
+
+Option 3. `scripts/precache-manifest.mjs` (~25 lines) runs after `next build`; `lib/precache.ts`
+(`warmPrecache()`) fetches the list on load and `cache.add`s whatever is missing.
+
+Option 1 is rejected because it trades a *known* hole for an *invisible* one. Option 2 remains rejected:
+the manifest was the only part of Serwist we needed, and generating it is a directory walk — the
+dependency, its build-config integration and its generated SW are all still cost we'd carry for nothing.
+
+Warming is driven from the **page**, not the SW's `install`. A SW only reinstalls when `sw.js`'s bytes
+change, and ours don't change between builds — so an install-time precache would pin the cache to
+whichever build first registered it. Warming on every page load sidesteps SW versioning entirely and
+keeps `sw.js` a dumb cache-first responder.
+
+The manifest is written to `public/`, **not** `.next/static/`, precisely because the latter is served
+immutable and is cache-first in our own SW — which would pin the *manifest itself* to the first build,
+forever.
+
+### Consequences
+
+- Offline coverage no longer depends on what the user happened to click while online. Verified: cache
+  wiped, one plain `/dashboard` visit with no note opened, server killed → `/dashboard?note=<id>` boots
+  with all 42 assets cached and 0 missing.
+- Every build ships ~2.4 MB of JS/CSS/fonts to the cache on first load. Acceptable for an app whose whole
+  point is working offline; revisit if it grows.
+- `public/precache.json` is generated and **gitignored** — the build owns it, not the repo.
+- `warmPrecache()` is best-effort: a failing asset, a missing manifest, or an offline load is a silent
+  no-op. It must never throw into React.
+- Stale entries from a previous build linger in the cache until the `yapper-v1` version is bumped. Small
+  and harmless (they're hash-keyed, so nothing *reads* them); prune if it ever matters.
 
 ---
 

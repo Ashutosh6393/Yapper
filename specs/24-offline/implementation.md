@@ -16,21 +16,37 @@ Branch: `feat/offline`
       Still to check in a browser once 24b lands: DevTools offline → reload `/dashboard` → no `/login`
       bounce. (Can't be observed today — with no service worker the offline reload never loads at all.)
 
+- [x] **24b — service worker + precache + manifest** (`public/sw.js`, `public/manifest.webmanifest`,
+      `public/icon.svg`, `scripts/precache-manifest.mjs`, `lib/precache.ts` + test, `app/providers.tsx`,
+      `app/layout.tsx`, `package.json` build script, root `.gitignore`)
+
+      **A design bug was caught in browser verification and fixed — see ADR-004.** The SW alone was not
+      enough: with the server killed, `/dashboard?note=<id>` threw a client-side exception. The network
+      log showed the document + 14 assets served 200 from cache and **7 code-split editor chunks
+      failing** — never requested during the online visit, so cache-on-demand never stored them
+      (`ChunkLoadError`). Cache-on-demand only holds what an online session happened to request, so
+      offline coverage was luck-dependent. Fix: `scripts/precache-manifest.mjs` walks `.next/static`
+      post-build → `public/precache.json` (gitignored); `warmPrecache()` pulls the missing assets into
+      the SW cache on load. ADR-001's "no precache manifest" claim was wrong and is amended; its "no
+      next-pwa/serwist dependency" claim survived.
+
+      **Verified in a real browser against a killed server** (a true network failure, not the DevTools
+      toggle):
+      - Cache + SW wiped → **one** plain `/dashboard` visit, no note ever opened → 42/42 manifest assets
+        cached, 0 missing.
+      - Server killed → `/dashboard?note=<id>` boots with **no crash**: shell served by the SW,
+        `serverReachable: false`, note list rendering from Dexie ("MY NOTES · 4 notes").
+      - This also confirms **24a end-to-end**: the session survived with the API unreachable — no
+        `/login` bounce. Goal-state items 1 and 2 met.
+      - Suite: 155 tests green; `tsc --noEmit` clean; `bun run build` clean (42 assets → precache.json).
+
 ## In Progress
 
 ## Blocked
 
 ## Next Steps
 
-1. **24b — service worker + manifest** (`public/sw.js`, `public/manifest.webmanifest`, `providers.tsx`,
-   `layout.tsx`)
-   - [ ] `sw.js`: cache-first `/_next/static/**`; network-first navigations with a pathname-keyed
-         fallback, else the cached `/dashboard`; everything else passthrough.
-   - [ ] Register in `providers.tsx` on `NODE_ENV === "production"` only.
-   - [ ] `manifest.webmanifest` + `manifest` in layout metadata.
-   - verify: `bun run build && bun run start`, visit `/dashboard` once, DevTools → Application →
-     Offline, reload → shell boots, notes render from Dexie, note bodies from `y-indexeddb`.
-3. **24c — offline indicator** (`lib/use-online.ts`, `components/dashboard/offline-badge.tsx`,
+1. **24c — offline indicator** (`lib/use-online.ts`, `components/dashboard/offline-badge.tsx`,
    `dashboard/page.tsx`)
    - [ ] Test first: badge renders when `navigator.onLine` is false, hides on the `online` event.
    - [ ] Hook + badge + mount in the dashboard header.

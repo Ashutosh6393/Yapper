@@ -106,6 +106,15 @@ New `apps/web/public/sw.js` (~35 lines), registered from `app/providers.tsx` in 
 Never cached, ever: any request to the API origin or a `POST`/`PUT`/`DELETE`. Auth and note data have
 exactly one client-side home (the cookie and Dexie); the SW must not become a second, staler one.
 
+**Precache the build's assets (added during implementation — ADR-004).** Cache-first on `/_next/static/**`
+solves *invalidation* (hashed = immutable) but not *coverage*: it only ever caches what an online session
+happened to request. Next code-splits the editor, so a user who never opened a note while online has no
+editor chunk cached and gets a `ChunkLoadError` — not an app — the moment they go offline. (This was
+caught in browser verification, not in review.) So `scripts/precache-manifest.mjs` walks `.next/static`
+after `next build` and writes `public/precache.json`; `lib/precache.ts` (`warmPrecache()`) fetches that
+list on load and adds whatever the cache is missing. Still no dependency — the manifest was the only part
+of `next-pwa`/`serwist` we needed, and generating it is a directory walk.
+
 No `next-pwa` / `serwist`. Those exist to generate a precache manifest at build time and wire it into the
 Next build — machinery we don't need, because Next's assets are already hash-immutable and our offline
 surface is a single document. A dependency + build config would be strictly more code than the file it
@@ -141,9 +150,12 @@ truth about it.
 | `apps/web/lib/session.ts` | 24a — one condition (`&& !live.error`) |
 | `apps/web/lib/session.test.ts` | 24a — new: offline ≠ sign-out |
 | `apps/web/public/sw.js` | 24b — new (~35 lines) |
-| `apps/web/public/manifest.webmanifest` | 24b — new |
-| `apps/web/app/providers.tsx` | 24b — register the SW (prod only) |
+| `apps/web/public/manifest.webmanifest` + `icon.svg` | 24b — new |
+| `apps/web/scripts/precache-manifest.mjs` | 24b — new: post-build asset list (ADR-004) |
+| `apps/web/lib/precache.ts` + test | 24b — new: `warmPrecache()` (ADR-004) |
+| `apps/web/app/providers.tsx` | 24b — register the SW + warm the cache (prod only) |
 | `apps/web/app/layout.tsx` | 24b — `manifest` metadata |
+| `apps/web/package.json`, root `.gitignore` | 24b — chain the manifest script; ignore its output |
 | `apps/web/lib/use-online.ts` | 24c — new hook |
 | `apps/web/components/dashboard/offline-badge.tsx` | 24c — new |
 | `apps/web/app/dashboard/page.tsx` | 24c — mount the badge in the header |

@@ -22,6 +22,8 @@ const sansFace = Hanken_Grotesk({
 export const metadata = {
   title: "Yapper",
   description: "Collaborative real-time note-taking",
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/icon.svg" },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
