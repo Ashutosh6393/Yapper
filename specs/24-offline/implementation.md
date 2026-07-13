@@ -40,18 +40,31 @@ Branch: `feat/offline`
         `/login` bounce. Goal-state items 1 and 2 met.
       - Suite: 155 tests green; `tsc --noEmit` clean; `bun run build` clean (42 assets → precache.json).
 
+- [x] **24c — offline indicator** (`lib/use-online.ts`, `components/dashboard/offline-badge.tsx` + test,
+      `components/dashboard/top-bar.tsx`)
+      `useOnline()` is a `useSyncExternalStore` over the same `online`/`offline` events `backoff.ts`
+      already binds (server snapshot `true`, so SSR and hydration match). Mounted in **`TopBar`**, not
+      `dashboard/page.tsx` as the design guessed — the header is already its own component, so the page
+      is untouched.
+
+      **A11y flaw caught by the test:** the reassurance first lived only in a Radix `TooltipContent`,
+      which mounts on hover — unreachable by touch and by a screen reader. It now lives in the badge
+      itself as `sr-only` text (the tooltip stays for sighted hover). `role="status"` is a live region,
+      so what matters is the announced *contents*, not an accessible name.
+
+      Verified: 3/3 unit tests; full suite **158 green**; `tsc --noEmit` clean. In a real browser against
+      the prod build, the badge appears on the `offline` event announcing *"Offline — changes are saved
+      on this device and will sync when you reconnect."* and disappears on `online`. (Chrome's offline
+      toggle isn't drivable from the tooling, so `navigator.onLine` was stubbed — the hook, the Radix
+      badge and the styling under test are all the real ones.)
+
 ## In Progress
 
 ## Blocked
 
 ## Next Steps
 
-1. **24c — offline indicator** (`lib/use-online.ts`, `components/dashboard/offline-badge.tsx`,
-   `dashboard/page.tsx`)
-   - [ ] Test first: badge renders when `navigator.onLine` is false, hides on the `online` event.
-   - [ ] Hook + badge + mount in the dashboard header.
-   - verify: unit test green; toggling DevTools offline shows/hides the badge live.
-4. **End-to-end goal state** (design.md acceptance 1–5)
+1. **End-to-end goal state** (design.md acceptance 1–5)
    - [ ] Offline: reload stays signed in; create + edit a note; reload again — the changes are still
          there. Reconnect → queue pushes, pull runs, server converges. No page reload needed.
 

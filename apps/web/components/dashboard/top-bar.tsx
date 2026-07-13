@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { OfflineBadge } from "./offline-badge";
 
 export function TopBar({
   search,
@@ -54,6 +55,7 @@ export function TopBar({
         />
       </div>
       <div className="flex items-center gap-1">
+        <OfflineBadge />
         <ThemeToggle />
         <Tooltip>
           <TooltipTrigger asChild>
