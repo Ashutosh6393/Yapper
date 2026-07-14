@@ -9,12 +9,28 @@ Branch: `feat/frontend-hardening` (cut from `main`)
 Ordered so each merges standalone. **25b is the only urgent one** (real data loss); the rest is polish.
 25b does not strictly depend on 25a and can go first; 25c genuinely needs the seam.
 
-- [ ] **25a — the seam** (`lib/report-error.ts` + test, `lib/query-client.ts`, `app/providers.tsx`)
-      One function, not a logger. `QueryCache`/`MutationCache` `onError` → `handleError`: `401` flips the
-      auth store, everything else → `reportError`. `unhandledrejection` listener for stray async.
-      Goal-state test **first** (`lib/report-error.test.ts`): offline → silent; `AbortError` → silent;
-      `401`/`403`/`404` → silent; `500` → reports; `ZodError` → reports.
-      `lib/http.ts` must not change.
+- [x] **25a — the seam** (`lib/report-error.ts` + test, `lib/query-client.ts`, `app/providers.tsx`)
+
+      Test-first, red confirmed (module absent). One function, not a logger; the Sentry line is a marked
+      TODO *inside* it (ADR-001/002).
+      - `QueryCache` + `MutationCache` `onError` → `handleError`: `401` → `useAuthStore.markExpired()`
+        (feeding 25b's banner + pusher pause), everything else → `reportError`. Covers every read and
+        mutation in the app, including unwritten ones. **`lib/http.ts` unchanged**, as designed.
+      - `unhandledrejection` listener in `providers.tsx` — the only seam that sees a rejected promise in an
+        event handler or a Hocuspocus socket failure. Boundaries catch none of those.
+      - Filter (ADR-005): silent for offline / `AbortError` / `ApiError` `401`,`403`,`404` / a `fetch`
+        transport `TypeError`. Reports `5xx`, `ZodError`, plain `TypeError`s, and anything unrecognized —
+        **report is the default**, so a broken API contract needs no special case to be caught.
+      - Context: caller's fields (`noteId`) + `online` + `syncEngine`.
+
+      **Two things the tests caught that review wouldn't have.** `AbortError` is a `DOMException`, which
+      is *not* an `instanceof Error` — the first cut's class check silently never matched. And silencing
+      `TypeError` wholesale (as the design's "TypeError from fetch" implied) would have swallowed every
+      `undefined` deref — precisely the bugs the funnel exists to catch. It now matches the fetch-failure
+      *message*, not the type; a browser wording drift over-reports a network blip, which is the safe
+      direction to fail (marked `ponytail:`).
+
+      Verified: full `apps/web` suite **178 tests / 38 files green**; `tsc --noEmit` clean.
 
 - [x] **25b — the `401` path** ⚠️ *data loss* (`lib/stores/auth.ts`, `lib/sync/classify.ts` + test,
       `lib/sync/push.ts` + test, `lib/sync/push.rollback.test.ts`,

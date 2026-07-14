@@ -7,6 +7,7 @@ import { SessionExpiredBanner } from "@/components/session-expired-banner";
 import { Toaster } from "@/components/ui/sonner";
 import { warmPrecache } from "../lib/precache";
 import { getQueryClient } from "../lib/query-client";
+import { reportError } from "../lib/report-error";
 import { SyncEngineProvider } from "../lib/sync/provider";
 
 /**
@@ -27,10 +28,24 @@ function useServiceWorker() {
   }, []);
 }
 
+/**
+ * The catch-all seam (spec 25a): async errors that reach neither the Query cache nor a boundary — a
+ * rejected promise in an event handler, the Hocuspocus provider's own socket failures. Error boundaries
+ * do not see any of these (they catch render throws only), so without this they vanish entirely.
+ */
+function useUnhandledRejections() {
+  useEffect(() => {
+    const onRejection = (e: PromiseRejectionEvent) => reportError(e.reason);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => window.removeEventListener("unhandledrejection", onRejection);
+  }, []);
+}
+
 /** App-wide client providers: theme (light/dark via next-themes) + TanStack Query + toasts. */
 export function Providers({ children }: { children: ReactNode }) {
   const queryClient = getQueryClient();
   useServiceWorker();
+  useUnhandledRejections();
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
