@@ -104,6 +104,8 @@ jobs:
           # api and socket share the root Dockerfile; web needs its own (Next standalone).
           file: ${{ matrix.app == 'web' && 'apps/web/Dockerfile' || 'Dockerfile' }}
           push: true
+          # TEMP(feat/ci-cd): prove the layers really build. Revert before merge.
+          no-cache: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.app }}
