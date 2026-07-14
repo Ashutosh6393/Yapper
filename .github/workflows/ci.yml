@@ -3,8 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    # TEMP(feat/ci-cd): smoke-test the image builds before merge. Revert to [main].
-    branches: [main, feat/ci-cd]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -74,8 +73,7 @@ jobs:
   images:
     name: Push ${{ matrix.app }} image
     needs: [check, test]
-    # TEMP(feat/ci-cd): was `github.ref == 'refs/heads/main'`. Revert before merge.
-    if: github.event_name == 'push'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -104,8 +102,6 @@ jobs:
           # api and socket share the root Dockerfile; web needs its own (Next standalone).
           file: ${{ matrix.app == 'web' && 'apps/web/Dockerfile' || 'Dockerfile' }}
           push: true
-          # TEMP(feat/ci-cd): prove the layers really build. Revert before merge.
-          no-cache: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.app }}
