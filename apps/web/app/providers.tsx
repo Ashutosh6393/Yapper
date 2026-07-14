@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { type ReactNode, useEffect } from "react";
 import { SessionExpiredBanner } from "@/components/session-expired-banner";
+import { SyncBlockedBanner } from "@/components/sync-blocked-banner";
 import { Toaster } from "@/components/ui/sonner";
 import { warmPrecache } from "../lib/precache";
 import { getQueryClient } from "../lib/query-client";
@@ -52,6 +53,8 @@ export function Providers({ children }: { children: ReactNode }) {
         {/* Above everything: an expired session pauses the pusher, so any page below this could be
             silently failing to save until the user re-authenticates (spec 25b). */}
         <SessionExpiredBanner />
+        {/* Same reasoning, different cause: a blocked push means nothing is saving anywhere (spec 26c). */}
+        <SyncBlockedBanner />
         <SyncEngineProvider>{children}</SyncEngineProvider>
         <Toaster />
       </QueryClientProvider>

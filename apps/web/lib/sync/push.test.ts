@@ -9,9 +9,16 @@ vi.mock("../http", async (importActual) => ({
   apiFetch: vi.fn(),
 }));
 
+// Spec 26c asserts the pusher schedules *no* retry on a blocked outcome — so the scheduler is a spy.
+vi.mock("./backoff", async (importActual) => ({
+  ...(await importActual<typeof import("./backoff")>()),
+  scheduleRetry: vi.fn(),
+}));
+
 import { ApiError, apiFetch } from "../http";
 import { useAuthStore } from "../stores/auth";
-import { cancelScheduledRetry, resetBackoff } from "./backoff";
+import { useSyncStore } from "../stores/sync";
+import { cancelScheduledRetry, resetBackoff, scheduleRetry } from "./backoff";
 import { db, rebuild } from "./db";
 // Register the client-mutator bodies so rebuild() folds the queued createNote.
 import "./mutators";
@@ -23,6 +30,7 @@ afterEach(async () => {
   cancelScheduledRetry();
   resetBackoff();
   useAuthStore.getState().clearExpired();
+  useSyncStore.getState().clearBlocked();
   await Promise.all([
     db.base.clear(),
     db.mutations.clear(),
@@ -75,6 +83,26 @@ it("on a 401: keeps the queue, flags the session expired, and stops pushing", as
   expect(useAuthStore.getState().expired).toBe(true);
 
   // Paused: further nudges are no-ops, so a dead session doesn't 401-storm the API.
+  await push();
+  expect(apiFetch).toHaveBeenCalledTimes(1);
+});
+
+// Spec 26c / ADR-005 — retry only what waiting can fix. A 403 (client group bound to another user) was
+// classified transient: retried at a 30s cap forever, reported nowhere, while rebuild() painted the
+// never-sent mutations over the server's real state. The queue must survive, but the pusher must stop and
+// the user must be told.
+it("on a 403: keeps the queue, stops pushing, and flags the block", async () => {
+  const id = crypto.randomUUID();
+  const seq = await db.mutations.add({ name: "createNote", args: { id } });
+  vi.mocked(apiFetch).mockRejectedValue(new ApiError(403));
+
+  await push();
+
+  expect(await db.mutations.get(seq)).toBeDefined();
+  expect(useSyncStore.getState().blocked).toBe(403);
+  expect(scheduleRetry).not.toHaveBeenCalled();
+
+  // Stopped: waiting cannot fix a durable server judgement, so further nudges are no-ops.
   await push();
   expect(apiFetch).toHaveBeenCalledTimes(1);
 });

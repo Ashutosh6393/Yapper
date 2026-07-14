@@ -14,8 +14,9 @@ export type BaseRow = NoteMeta;
 /** A queued local mutation: the `Mutation` envelope tagged with its monotonic apply `seq`. */
 export type MutationRow = { seq: number } & Mutation;
 
-/** A `db.sync` singleton row (clientGroupID | cookie | lastMutationID). */
-export type SyncRow = { key: string; value: string };
+/** A `db.sync` singleton row (clientGroupID | cookie | lastMutationID). `userId` is set on the
+ * `clientGroupID` row only — the user it was minted for (spec 26b). */
+export type SyncRow = { key: string; value: string; userId?: string };
 
 /**
  * A materialized `db.notes` row the UI reads. `NoteMeta` (label **ids**) + resolved `labels` chips —
@@ -57,16 +58,23 @@ db.version(2).stores({
 const CLIENT_GROUP_ID_KEY = "clientGroupID";
 
 /**
- * The canonical client-group identity shared by push and pull. Minted once per browser via
- * `crypto.randomUUID()`, persisted in `db.sync`, and stable across tabs (IndexedDB is origin-scoped)
- * and reloads. A first-mint race between two tabs is benign: the `put` is keyed on `key`, so it is
- * last-write-wins and both tabs converge on one id.
+ * The canonical client-group identity shared by push and pull. Minted via `crypto.randomUUID()`,
+ * persisted in `db.sync`, and stable across tabs (IndexedDB is origin-scoped) and reloads. A first-mint
+ * race between two tabs is benign: the `put` is keyed on `key`, so it is last-write-wins and both tabs
+ * converge on one id.
+ *
+ * **Scoped to the user who minted it** (spec 26b, ADR-003): the server binds a client group to its first
+ * pushing user and rejects anyone else with a `403`, forever. So an id that outlives the user permanently
+ * jams the queue. 26a's sign-out wipe should mean this never fires — it fires when the wipe *didn't*
+ * happen (a crash, a force-quit, a failed delete), which is exactly when the alternative is a permanent,
+ * silent failure. `userId === null` (session not yet mirrored) reuses the row rather than re-minting on a
+ * momentary unknown.
  */
-export async function getClientGroupID(): Promise<string> {
+export async function getClientGroupID(userId: string | null): Promise<string> {
   const row = await db.sync.get(CLIENT_GROUP_ID_KEY);
-  if (row) return row.value;
+  if (row && (userId === null || row.userId === userId)) return row.value;
   const id = crypto.randomUUID();
-  await db.sync.put({ key: CLIENT_GROUP_ID_KEY, value: id });
+  await db.sync.put({ key: CLIENT_GROUP_ID_KEY, value: id, ...(userId ? { userId } : {}) });
   return id;
 }
 

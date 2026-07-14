@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect } from "react";
+import { currentUserId } from "../session";
 import { getClientGroupID, rebuild } from "./db";
 import { isSyncEngineEnabled } from "./flag";
 // Registers the 14 client-mutator bodies into rebuild()'s fold (side effect) — must load before any
@@ -35,7 +36,7 @@ function SyncEngineBootstrap({ children }: { children: ReactNode }) {
     // useLiveQuery's first-tick `undefined` (skeleton), not on this promise. Reconnect/focus/poke
     // re-pulls attach to this same seam in spec 16.
     (async () => {
-      await getClientGroupID();
+      await getClientGroupID(currentUserId());
       await pull();
       if (cancelled) return;
       await rebuild();

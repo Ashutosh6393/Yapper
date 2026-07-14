@@ -45,8 +45,9 @@ function touchedNoteId(m: Mutation): string | null {
   }
 }
 
-/** Read the group's de-dup pointer + bound user. `null` when the group has never pushed. */
-async function getSyncClient(
+/** Read the group's de-dup pointer + bound user. `null` when the group has never pushed. Shared with
+ * the puller, which enforces the same binding (spec 26b, ADR-004). */
+export async function getSyncClient(
   dbx: Executor,
   clientGroupID: string,
 ): Promise<{ lastMutationId: number; userId: string } | null> {

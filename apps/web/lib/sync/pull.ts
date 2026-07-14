@@ -1,5 +1,6 @@
 import { pullResponseSchema } from "@yapper/schemas";
 import { apiFetch } from "../http";
+import { currentUserId } from "../session";
 import { db, getClientGroupID, rebuild } from "./db";
 
 /**
@@ -15,7 +16,7 @@ import { db, getClientGroupID, rebuild } from "./db";
  * engine code (spec 15 bootstrap, spec 17 poke/reconnect); never runs on the flag-off path.
  */
 export async function pull(): Promise<void> {
-  const clientGroupID = await getClientGroupID();
+  const clientGroupID = await getClientGroupID(currentUserId());
   const cookie = (await db.sync.get("cookie"))?.value ?? null;
 
   let outcome: ReturnType<typeof pullResponseSchema.parse>;

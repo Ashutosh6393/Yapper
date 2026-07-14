@@ -1,7 +1,10 @@
 import { type PushResponse, pushResponseSchema } from "@yapper/schemas";
 import { toast } from "@/components/ui/sonner";
 import { ApiError, apiFetch } from "../http";
+import { reportError } from "../report-error";
+import { currentUserId } from "../session";
 import { useAuthStore } from "../stores/auth";
+import { useSyncStore } from "../stores/sync";
 import { resetBackoff, scheduleRetry } from "./backoff";
 import { classifyPushOutcome, PushTransportError } from "./classify";
 import { db, getClientGroupID, rebuild } from "./db";
@@ -14,6 +17,9 @@ import { rejectToastCopy } from "./reject-copy";
  *
  * - **Transient** (offline / timeout / non-2xx incl. 429/5xx / malformed body): keep the whole queue,
  *   schedule a backoff retry, and stay **silent** — never advance `lastMutationID`, never toast.
+ * - **Blocked** (`4xx` other than `401`/`429`, e.g. a `403` on a stale client-group binding): keep the
+ *   whole queue, **stop** (no retry — waiting cannot fix a durable server judgement, ADR-005), report,
+ *   and surface a banner: the user's changes are not saving and must not look like they are.
  * - **Auth** (`401`): keep the whole queue, **pause** (no retry — waiting cannot mint a new session), and
  *   flag the session expired so the UI can prompt re-auth. Never `signOut()`: the queue is the user's
  *   unsaved writing, keyed to this user.
@@ -51,10 +57,12 @@ async function pushOnce(): Promise<void> {
   // Paused on an expired session: every push would just 401 again. The queue stays put and drains after
   // re-auth (an OAuth redirect reloads the app → the flag clears → the bootstrap's schedulePush runs).
   if (useAuthStore.getState().expired) return;
+  // Same for a blocked push: the server has made a durable judgement, so re-sending is pure noise.
+  if (useSyncStore.getState().blocked !== null) return;
 
   const pending = await db.mutations.orderBy("seq").toArray();
   if (pending.length === 0) return;
-  const clientGroupID = await getClientGroupID();
+  const clientGroupID = await getClientGroupID(currentUserId());
   const body = {
     clientGroupID,
     mutations: pending.map(({ seq, name, args }) => ({ seq, name, args })),
@@ -79,6 +87,17 @@ async function pushOnce(): Promise<void> {
     // Session dead, queue alive. Pause — deliberately no scheduleRetry: waiting cannot fix this, and
     // retrying a dead credential just 401-storms the API.
     useAuthStore.getState().markExpired();
+    return;
+  }
+  if (outcome.kind === "blocked") {
+    // Queue alive, session alive, server immovable (ADR-005). Deliberately no scheduleRetry — waiting
+    // cannot fix a 4xx, and retrying it is what turned this into a silent, permanent jam. A client/server
+    // disagreement is always a bug, so it reports; the banner tells the user nothing is saving.
+    useSyncStore.getState().markBlocked(outcome.status);
+    reportError(new Error(`Push blocked with ${outcome.status}`), {
+      pending: pending.length,
+      clientGroupID,
+    });
     return;
   }
   if (outcome.kind === "transient") {

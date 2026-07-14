@@ -211,3 +211,18 @@ test("lastMutationID is echoed from sync_client (0 when absent) (TDD #8)", async
   const present = await pull(owner, group, absent.body.cookie);
   expect(present.body.lastMutationID).toBe(7);
 }, 30_000);
+
+// Spec 26b / ADR-004 — push has enforced this binding since spec 19; pull never did. That asymmetry is
+// why a stale clientGroupID presented as a half-working app (reads fine, every write 403s) instead of an
+// obvious break. When invariants disagree, fail on both sides.
+test("403s when the client group is bound to another user (goal #4)", async () => {
+  const owner = await makeUser("bound-owner");
+  const other = await makeUser("bound-other");
+  const group = newGroup();
+  await db.insert(syncClient).values({ clientGroupId: group, userId: owner, lastMutationId: 0 });
+
+  const res = await pull(other, group, null);
+
+  expect(res.status).toBe(403);
+  expect(res.body.error).toBe("Client group bound to another user");
+}, 30_000);
