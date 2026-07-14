@@ -36,14 +36,23 @@ export type PushOutcome =
   | { kind: "settled"; rejected: RejectedMutation[] }
   | { kind: "transient" }
   /** The queue is fine; the *session* is dead. Pause the pusher and re-auth — never drop, never retry. */
-  | { kind: "auth" };
+  | { kind: "auth" }
+  /** The session is fine and the queue is fine; the *server will never accept this push*. Stop. */
+  | { kind: "blocked"; status: number };
 
 export function classifyPushOutcome(input: PushResponse | PushTransportError): PushOutcome {
   if (input instanceof PushTransportError) {
-    // A 401 is not a network blip. Retrying is what `transient` means, and no amount of waiting mints a
-    // new session — so a 401 in the transient bucket becomes an infinite silent retry (backoff.ts has no
-    // max-attempts, by design) while the user keeps typing and nothing saves. ADR-003.
-    return input.status === 401 ? { kind: "auth" } : { kind: "transient" };
+    // The rule (spec 26c, ADR-005): **retry only what waiting can fix.** Offline, timeouts, 5xx and 429
+    // genuinely heal with time — everything else in the 4xx range is a durable judgement about *this*
+    // request, and re-sending the identical bytes yields the identical answer, forever. A 401 keeps its
+    // own outcome because the fix is re-auth, not a code change (ADR-003). This is what a 403 needed and
+    // did not have: it sat in the transient bucket and retried, silently, until the tab closed.
+    const { status } = input;
+    if (status === 401) return { kind: "auth" };
+    if (status !== undefined && status >= 400 && status < 500 && status !== 429) {
+      return { kind: "blocked", status };
+    }
+    return { kind: "transient" };
   }
   const rejected = input.verdicts
     .filter(

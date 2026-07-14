@@ -53,12 +53,26 @@ describe("yapper-sync Dexie schema", () => {
 });
 
 describe("getClientGroupID", () => {
-  it("mints a uuid once and returns the same id on every subsequent call", async () => {
-    const first = await getClientGroupID();
+  it("mints a uuid once and returns the same id on every subsequent call by the same user", async () => {
+    const first = await getClientGroupID("u1");
     expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
-    const second = await getClientGroupID();
+    const second = await getClientGroupID("u1");
     expect(second).toBe(first);
     expect((await db.sync.get("clientGroupID"))?.value).toBe(first);
+  });
+
+  // Spec 26b / ADR-003. The server binds a client group to its first pushing user and 403s everyone else,
+  // forever — so an id that outlives the user it was minted for jams the queue permanently and silently.
+  it("re-mints for a different user (an id must never outlive its user)", async () => {
+    const mine = await getClientGroupID("u1");
+    const theirs = await getClientGroupID("u2");
+    expect(theirs).not.toBe(mine);
+    expect(await db.sync.get("clientGroupID")).toMatchObject({ value: theirs, userId: "u2" });
+  });
+
+  it("reuses the id when the user is not known yet (a momentary unknown is not a new user)", async () => {
+    const mine = await getClientGroupID("u1");
+    expect(await getClientGroupID(null)).toBe(mine);
   });
 });
 

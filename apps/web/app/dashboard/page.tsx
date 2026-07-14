@@ -36,6 +36,7 @@ import { clearPersistedSession, usePersistedSession } from "../../lib/session";
 import * as engineActions from "../../lib/sync/actions";
 import { isSyncEngineEnabled } from "../../lib/sync/flag";
 import { useLabelList, useNoteList } from "../../lib/sync/reads";
+import { flushPending, resetLocalEngine } from "../../lib/sync/reset";
 
 function matches(note: NoteSummary, q: string): boolean {
   if (!q) return true;
@@ -251,9 +252,20 @@ function DashboardBody() {
           email={session.user.email}
           onMenuClick={() => setSidebarOpen(true)}
           onSignOut={async () => {
+            // Sign-out wipes the local engine (spec 26a): the previous user's notes must not survive on
+            // this browser. Flush first — the queue is their unsaved writing — and confirm the discard if
+            // it won't drain (offline / blocked).
+            const unsynced = await flushPending();
+            if (unsynced > 0) {
+              const plural = unsynced === 1 ? "change hasn't" : "changes haven't";
+              if (!window.confirm(`${unsynced} ${plural} synced. Sign out and discard?`)) return;
+            }
+            await resetLocalEngine();
             clearPersistedSession();
             await signOut();
-            router.replace("/login");
+            // A full load, not router.replace: the wipe closed Dexie, so the next session needs a fresh
+            // document to rebuild the engine (and a fresh clientGroupID) from nothing.
+            window.location.href = "/login";
           }}
         />
         <main className="flex-1 overflow-y-auto px-7 pt-7 pb-24">

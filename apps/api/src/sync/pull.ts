@@ -11,6 +11,7 @@ import {
   snapshotOf,
   writeCvr,
 } from "./cvr";
+import { getSyncClient } from "./push";
 
 /**
  * `POST /api/sync/pull` (spec 16, ADR-0004). Returns the metadata delta since the caller's last cookie
@@ -34,6 +35,15 @@ export function handlePull() {
       return;
     }
     const { clientGroupID, cookie } = parsed.data;
+
+    // The same binding push has always enforced (spec 26b, ADR-004). Without it a client group left over
+    // from a previous user on this browser reads perfectly while every write 403s — a half-working app,
+    // which is harder to debug than a broken one, and is exactly how this hid.
+    const bound = await getSyncClient(db, clientGroupID);
+    if (bound && bound.userId !== userId) {
+      res.status(403).json({ error: "Client group bound to another user" });
+      return;
+    }
 
     const response = await db.transaction(async (tx) => {
       const view = await authorizedNotes(tx, userId);

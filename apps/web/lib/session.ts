@@ -17,6 +17,12 @@ function readCache(): SessionData {
   }
 }
 
+/** The signed-in user id, readable outside React — the sync engine (push/pull/bootstrap) needs it to
+ * scope the `clientGroupID` to its user (spec 26b) and has no hook to read it from. */
+export function currentUserId(): string | null {
+  return readCache()?.user.id ?? null;
+}
+
 /** Drop the mirrored session (call on explicit sign-out so a shared browser can't optimistically
  * re-render the previous user's shell). */
 export function clearPersistedSession(): void {

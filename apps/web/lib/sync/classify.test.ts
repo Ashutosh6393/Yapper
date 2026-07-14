@@ -15,6 +15,20 @@ describe("classifyPushOutcome", () => {
     expect(classifyPushOutcome(new PushTransportError("401", 401)).kind).toBe("auth");
   });
 
+  // Spec 26c / ADR-005 — retry only what waiting can fix. A 403 (a client group bound to another user)
+  // was in the transient bucket, so it was retried forever and reported nowhere: the queue jammed and the
+  // app went on painting the optimistic replay over the server's real state.
+  it("classifies a 403 as blocked — the server will never accept this push", () => {
+    expect(classifyPushOutcome(new PushTransportError("403", 403))).toEqual({
+      kind: "blocked",
+      status: 403,
+    });
+  });
+
+  it("keeps 429 transient — a rate limit IS fixed by waiting", () => {
+    expect(classifyPushOutcome(new PushTransportError("429", 429)).kind).toBe("transient");
+  });
+
   it("splits a settled 200 body into only its rejected verdicts (seq + reason), dropping applied", () => {
     const res: PushResponse = {
       lastMutationID: 3,
