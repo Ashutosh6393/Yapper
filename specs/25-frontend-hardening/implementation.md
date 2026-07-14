@@ -61,19 +61,31 @@ Ordered so each merges standalone. **25b is the only urgent one** (real data los
       Still to check in a browser: expire the session cookie → type → banner appears, queue survives a
       reload, sign-in drains it.
 
-- [ ] **25c — error surfaces** (`components/error-boundary.tsx` + test, `lib/is-chunk-error.ts` + test,
-      `app/global-error.tsx`, `app/error.tsx`, `components/dashboard/note-dialog.tsx`,
-      `app/not-found.tsx`, `app/share/[token]/page.tsx`)
-      Hand-rolled class boundary (~25 lines, no `react-error-boundary`), `componentDidCatch` →
-      `reportError`. Wrap the editor inside the dialog with `key={noteId}` (free `resetKeys`); fallback's
-      recovery is **Close**, or **Reload** when `isChunkError`. `global-error.tsx` reloads, never
-      `reset()`.
-      Also ports `share/[token]` off inline styles to shadcn/brand tokens — it is the last inline-styled
-      page in the app and, fittingly, an error surface whose `#555` text is invisible in dark mode. Makes
-      `apps/web/CLAUDE.md`'s no-inline-styles claim true.
-      Tests: `isChunkError`, plus **one** boundary integration test (child throws → fallback renders →
-      `reportError` called → **the dashboard is still mounted**; that last assertion is the thesis).
-      No tests for `not-found.tsx` / `global-error.tsx` — static JSX, no logic.
+- [x] **25c — error surfaces** (`components/error-boundary.tsx` + test, `lib/is-chunk-error.ts` + test,
+      `app/global-error.tsx`, `app/error.tsx`, `app/not-found.tsx`,
+      `components/dashboard/note-dialog.tsx`, `app/share/[token]/page.tsx`)
+
+      Test-first, red confirmed (both modules absent).
+      - `ErrorBoundary`: hand-rolled class, ~25 lines, **no `react-error-boundary`**. `componentDidCatch`
+        → `reportError` (a render throw reaches no other seam — without it, white screen and silence).
+      - Dialog boundary wraps `<Editor>` with `key={noteId}`. The key **is** the reset: React remounts the
+        boundary when the note changes, so a crash on one note leaves no stale fallback on the next — the
+        one feature the dependency would have sold us, from the reconciler already running.
+      - `EditorCrashed` fallback: recovery is **Close** (blast radius is one note; the dashboard, note
+        list and sync engine are all still running behind the dialog) — **Reload** when `isChunkError`,
+        because closing wouldn't help a stale-deploy tab and a retry re-requests the same dead URL.
+      - `app/error.tsx`: `reset()` normally, `location.reload()` when `isChunkError`.
+        `app/global-error.tsx`: **always** reload, never `reset()` — the providers are already unmounted,
+        so `reset()` would re-render a corpse. It ships its own `<html>`/`<body>` (no layout above it) and
+        deliberately uses no shadcn `Button`, since it renders without the providers.
+      - `app/not-found.tsx`: branded 404.
+      - `share/[token]` ported to Tailwind/shadcn — the last inline-styled page in the app, and an error
+        surface whose `#555` was invisible in dark mode. `apps/web/CLAUDE.md`'s no-inline-styles claim is
+        now true.
+
+      Tests: `isChunkError` (3), plus the boundary suite (4) — including the thesis assertion, **the
+      surrounding app stays mounted when a child throws**. If that ever flips, the boundary is in the
+      wrong place. No tests for `not-found.tsx` / `global-error.tsx`: static JSX, no logic to break.
 
 - [ ] **25d — the missing note** (`lib/sync/reads.ts` + test, `components/dashboard/note-dialog.tsx`)
       `useNoteDetail` → `loading | found | missing` (today `undefined` conflates all three, and

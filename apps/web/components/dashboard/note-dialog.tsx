@@ -2,8 +2,11 @@
 
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/sonner";
+import { ErrorBoundary } from "../../components/error-boundary";
+import { isChunkError } from "../../lib/is-chunk-error";
 import { useNoteDetail } from "../../lib/sync/reads";
 import { AccessControl } from "./access-control";
 
@@ -63,22 +66,32 @@ export function NoteDialog({
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
           {noteId ? (
-            <Editor
+            // The app's only component-level boundary (spec 25c). TipTap + Yjs + Hocuspocus is the
+            // crashiest code we own and it is mounted *inside* the dashboard, so an unguarded throw here
+            // is a white screen. Contained, it costs one note: the list, the sync engine and the Query
+            // cache all keep running behind the dialog.
+            // `key={noteId}` is the reset: React remounts the boundary when the note changes, so a crash
+            // on one note doesn't leave a stale fallback on the next.
+            <ErrorBoundary
               key={noteId}
-              noteId={noteId}
-              assumeEditable={assumeEditable}
-              // Owner-made-private kicks every other editor: close their note immediately and carry the
-              // reason out with them — the editor's in-place notice would be unmounted by `onClose`
-              // before it could be read, so the message has to outlive the dialog.
-              onMadePrivate={
-                note?.isOwner
-                  ? undefined
-                  : () => {
-                      toast.error("Note made private by owner");
-                      onClose();
-                    }
-              }
-            />
+              fallback={(err) => <EditorCrashed error={err} onClose={onClose} />}
+            >
+              <Editor
+                noteId={noteId}
+                assumeEditable={assumeEditable}
+                // Owner-made-private kicks every other editor: close their note immediately and carry the
+                // reason out with them — the editor's in-place notice would be unmounted by `onClose`
+                // before it could be read, so the message has to outlive the dialog.
+                onMadePrivate={
+                  note?.isOwner
+                    ? undefined
+                    : () => {
+                        toast.error("Note made private by owner");
+                        onClose();
+                      }
+                }
+              />
+            </ErrorBoundary>
           ) : (
             <div className="flex min-h-80 items-center justify-center gap-2 rounded-lg border bg-card text-sm text-muted-foreground">
               <Loader2
@@ -91,5 +104,43 @@ export function NoteDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The dialog boundary's fallback. Recovery is **Close** — not retry: the blast radius is one note and the
+ * app behind it is fine, so getting the user back to a working dashboard beats re-rendering the thing
+ * that just threw.
+ *
+ * A stale chunk is the exception (ADR-007). It means a deploy landed under a long-lived tab and this
+ * tab's Editor chunk no longer exists on the server. Closing wouldn't help — the next note would fail
+ * identically — and neither would a retry, which re-requests the same dead URL. Only fresh HTML carries
+ * the new chunk URLs, so the button reloads.
+ */
+function EditorCrashed({ error, onClose }: { error: unknown; onClose: () => void }) {
+  const stale = isChunkError(error);
+
+  return (
+    <div className="flex min-h-80 flex-col items-center justify-center gap-4 rounded-lg border bg-card p-6 text-center">
+      <div className="space-y-1.5">
+        <p className="font-medium text-sm">
+          {stale ? "Yapper was updated" : "This note couldn't be opened"}
+        </p>
+        <p className="max-w-sm text-muted-foreground text-sm">
+          {stale
+            ? "A new version is available. Reload to pick it up — nothing was lost."
+            : "The editor hit an unexpected error. Your other notes are unaffected, and this note's content is safe on this device."}
+        </p>
+      </div>
+      {stale ? (
+        <Button size="sm" onClick={() => window.location.reload()}>
+          Reload
+        </Button>
+      ) : (
+        <Button size="sm" variant="secondary" onClick={onClose}>
+          Close
+        </Button>
+      )}
+    </div>
   );
 }

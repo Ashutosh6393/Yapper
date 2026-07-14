@@ -1,7 +1,9 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useSession } from "../../../lib/auth-client";
 import { ApiError } from "../../../lib/http";
 import { useJoinNote } from "../../../lib/queries/share";
@@ -45,25 +47,21 @@ export default function SharePage() {
   }, [isPending, session, token, router, joinNote]);
 
   return (
-    <main style={main}>
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 p-6 text-center">
       {error ? (
         <>
-          <p>{error}</p>
-          <button type="button" onClick={() => router.replace("/dashboard")} style={ghostBtn}>
-            Go to dashboard
-          </button>
+          <div className="space-y-2">
+            <h1 className="font-semibold text-2xl tracking-tight">This link doesn&apos;t work</h1>
+            <p className="max-w-md text-muted-foreground text-sm">{error}</p>
+          </div>
+          <Button onClick={() => router.replace("/dashboard")}>Go to your notes</Button>
         </>
       ) : (
-        <p style={{ color: "#555" }}>Opening shared note…</p>
+        <p className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+          Opening shared note…
+        </p>
       )}
     </main>
   );
 }
-
-const main = { fontFamily: "system-ui, sans-serif", padding: "3rem", maxWidth: 420 } as const;
-const ghostBtn = {
-  padding: "6px 12px",
-  borderRadius: 6,
-  cursor: "pointer",
-  marginTop: 12,
-} as const;
