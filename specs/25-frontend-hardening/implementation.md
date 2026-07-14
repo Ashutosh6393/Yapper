@@ -1,8 +1,11 @@
 # 25 · Frontend Hardening — Implementation
 
-## Status: in-progress
+## Status: complete — all four slices shipped
 
 Branch: `feat/frontend-hardening` (cut from `main`)
+
+Goal state met on all six acceptance items. Suite: **188 tests / 41 files green**; `tsc --noEmit` clean;
+`next build` clean. The two browser checks below are the only things a unit test cannot cover.
 
 ## Slices
 
@@ -87,13 +90,25 @@ Ordered so each merges standalone. **25b is the only urgent one** (real data los
       surrounding app stays mounted when a child throws**. If that ever flips, the boundary is in the
       wrong place. No tests for `not-found.tsx` / `global-error.tsx`: static JSX, no logic to break.
 
-- [ ] **25d — the missing note** (`lib/sync/reads.ts` + test, `components/dashboard/note-dialog.tsx`)
-      `useNoteDetail` → `loading | found | missing` (today `undefined` conflates all three, and
-      `note-dialog.tsx:65` branches on `noteId` rather than `note`, so a nonexistent note renders a blank
-      editor + a live WebSocket). Dialog branches spinner / editor / *"This note doesn't exist or was made
-      private"*. Offline, `missing` reads *"not synced yet"*, not *"gone"*.
-      Reachable through a normal flow: owner revokes (spec 07) while a collaborator is offline → the
-      `kick` handler never fires for them → silent blank dialog on next open.
+- [x] **25d — the missing note** (`lib/sync/reads.ts` + test, `components/dashboard/note-dialog.tsx`)
+
+      Test-first, red confirmed (3 new assertions failed; the 9 existing `reads` tests kept passing).
+      - **Root cause was in the read, not the dialog.** `useLiveQuery` yields `undefined` while it
+        resolves, and `db.notes.get` yields `undefined` for a row that isn't there — so
+        `loading: note === undefined` left a missing note *loading forever*. `useLocalNote` now returns
+        `?? null`: `undefined` = haven't looked yet, `null` = looked, it's gone. That sentinel is the
+        whole fix; `useNoteDetail` derives `loading | found | missing` from it.
+      - The Query (flag-off) path maps a `404` — `isPending: false`, no data — to the same `missing`.
+      - `NoteMissing` in the dialog, with **offline-aware copy**: online → *"It was deleted, or the owner
+        made it private"*; offline → *"This note isn't on this device yet"*. Different sentences, and we
+        know which is true.
+
+      **Deviation from design.md, deliberate.** The design said the dialog shows *spinner → editor →
+      missing*. Gating the editor behind `status === "found"` would put a spinner between click and
+      editor, regressing the **instant open** that specs 13/16 bought on purpose — Dexie answers in
+      milliseconds, so that spinner is a flash, and a flash of "gone" for a note that exists is a worse
+      lie than no state at all. The editor therefore renders while `loading` **or** `found` (today's
+      behavior, preserved); only a *confirmed* `missing` swaps it out.
 
 ## Verification
 

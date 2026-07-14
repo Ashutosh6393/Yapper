@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/sonner";
 import { ErrorBoundary } from "../../components/error-boundary";
 import { isChunkError } from "../../lib/is-chunk-error";
 import { useNoteDetail } from "../../lib/sync/reads";
+import { useOnline } from "../../lib/use-online";
 import { AccessControl } from "./access-control";
 
 /** Lazy-load the editor (TipTap + Yjs + Hocuspocus + y-indexeddb) into its own chunk so the dashboard's
@@ -41,9 +42,14 @@ export function NoteDialog({
 }) {
   // Read metadata through the flag-gated adapter: Dexie (instant, carries `isOwner` since spec 16) when
   // the sync engine is on, else TanStack Query. Opening a note no longer costs a `GET /:id` round-trip.
-  const note = useNoteDetail(noteId ?? "").note;
+  const { note, status } = useNoteDetail(noteId ?? "");
   const open = creating || noteId !== null;
   const title = note?.title ?? (creating ? "New note" : "Note");
+
+  // Only a *confirmed* absence swaps the editor out (spec 25d). `loading` keeps rendering the editor —
+  // Dexie answers in milliseconds and specs 13/16 bought instant open deliberately, so a spinner here
+  // would be a flash, and a flash of "gone" for a note that exists is a worse lie than no state at all.
+  const missing = noteId !== null && status === "missing";
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? undefined : onClose())}>
@@ -65,7 +71,9 @@ export function NoteDialog({
           )}
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-          {noteId ? (
+          {missing ? (
+            <NoteMissing onClose={onClose} />
+          ) : noteId ? (
             // The app's only component-level boundary (spec 25c). TipTap + Yjs + Hocuspocus is the
             // crashiest code we own and it is mounted *inside* the dashboard, so an unguarded throw here
             // is a white screen. Contained, it costs one note: the list, the sync engine and the Query
@@ -104,6 +112,36 @@ export function NoteDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * A note the client is *sure* it cannot see (spec 25d). Before this, the dialog rendered a blank editor
+ * and opened a WebSocket for it — silently wrong, which is worse than a crash you can at least see.
+ *
+ * Offline, the same absence means something different and the copy must not overclaim: this device simply
+ * may not have pulled the note yet. "Gone" and "not synced yet" are different sentences, and we know
+ * which is which.
+ */
+function NoteMissing({ onClose }: { onClose: () => void }) {
+  const online = useOnline();
+
+  return (
+    <div className="flex min-h-80 flex-col items-center justify-center gap-4 rounded-lg border bg-card p-6 text-center">
+      <div className="space-y-1.5">
+        <p className="font-medium text-sm">
+          {online ? "This note isn't available" : "This note isn't on this device yet"}
+        </p>
+        <p className="max-w-sm text-muted-foreground text-sm">
+          {online
+            ? "It was deleted, or the owner made it private. Notes shared with you disappear when sharing is turned off."
+            : "It hasn't synced here yet. Reconnect and it will appear if you still have access."}
+        </p>
+      </div>
+      <Button size="sm" variant="secondary" onClick={onClose}>
+        Close
+      </Button>
+    </div>
   );
 }
 

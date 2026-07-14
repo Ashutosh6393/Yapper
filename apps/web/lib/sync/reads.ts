@@ -1,9 +1,9 @@
-import type { Label } from "@yapper/schemas";
+import type { Label, NoteMetadata } from "@yapper/schemas";
 import { useLiveQuery } from "dexie-react-hooks";
 import type { NoteFilter } from "../dashboard-view";
 import { useLabels } from "../queries/labels";
 import { useNote, useNotes } from "../queries/notes";
-import { db } from "./db";
+import { db, type LocalNote } from "./db";
 import { isSyncEngineEnabled } from "./flag";
 
 /**
@@ -38,9 +38,14 @@ export function useLocalNotes(filter: NoteFilter, labelId?: string | null) {
   }, [filter, labelId]);
 }
 
-/** A single materialized note (owner controls read `isOwner`). */
+/**
+ * A single materialized note (owner controls read `isOwner`). The `?? null` is load-bearing:
+ * `useLiveQuery` yields `undefined` while it resolves *and* `db.notes.get` yields `undefined` for a row
+ * that isn't there, so without a sentinel the two are indistinguishable. `undefined` = haven't looked
+ * yet; `null` = looked, it's gone.
+ */
 export function useLocalNote(id: string) {
-  return useLiveQuery(() => db.notes.get(id), [id]);
+  return useLiveQuery(async () => (await db.notes.get(id)) ?? null, [id]);
 }
 
 /** The sidebar label list. */
@@ -83,14 +88,36 @@ export function useNoteList(filter: NoteFilter, labelId: string | null, enabled 
   return { notes: query.data, loading: query.isPending };
 }
 
-/** Single note detail, flag-gated: `db.notes.get(id)` when the engine is on, else Query `useNote`. */
-export function useNoteDetail(id: string) {
+/**
+ * The three states a note detail can actually be in (spec 25d). `undefined` alone conflated all three,
+ * which is why the dialog used to render an editor for a note that did not exist.
+ */
+export type NoteDetailStatus = "loading" | "found" | "missing";
+
+/**
+ * Single note detail, flag-gated: `db.notes.get(id)` when the engine is on, else Query `useNote`.
+ *
+ * `missing` is reachable through an ordinary flow, not just a typo'd URL: the owner makes a note private
+ * (spec 07) and the collaborator's link now points at a row they can no longer read. The socket's `kick`
+ * only reaches a *connected* editor, so a collaborator who was offline at revoke time meets this state on
+ * their next open.
+ */
+export function useNoteDetail(id: string): {
+  note: LocalNote | NoteMetadata | undefined;
+  status: NoteDetailStatus;
+} {
   if (isSyncEngineEnabled()) {
     // biome-ignore lint/correctness/useHookAtTopLevel: stable-flag branch (see useNoteList).
     const note = useLocalNote(id);
-    return { note, loading: note === undefined };
+    if (note === undefined) return { note: undefined, status: "loading" };
+    if (note === null) return { note: undefined, status: "missing" };
+    return { note, status: "found" };
   }
   // biome-ignore lint/correctness/useHookAtTopLevel: stable-flag branch (see useNoteList).
   const query = useNote(id);
-  return { note: query.data, loading: query.isPending };
+  // A 404 lands here as `isPending: false` with no data — the same "gone" the Dexie path reports as null.
+  if (query.isPending) return { note: undefined, status: "loading" };
+  return query.data
+    ? { note: query.data, status: "found" }
+    : { note: undefined, status: "missing" };
 }
