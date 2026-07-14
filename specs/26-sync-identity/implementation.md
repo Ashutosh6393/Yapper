@@ -33,7 +33,7 @@ Re-minting the `clientGroupID` drained the queue immediately (push `200`, `lastM
 
 ## Slices
 
-- [ ] **26a — wipe on sign-out** ⚠️ *privacy* (`apps/web/lib/sync/reset.ts` + test,
+- [x] **26a — wipe on sign-out** ⚠️ *privacy* (`apps/web/lib/sync/reset.ts` + test,
       `apps/web/app/dashboard/page.tsx`)
       Sign-out: flush the queue → if it still won't drain, confirm the discard with a count → `db.delete()`
       + clear the y-indexeddb note docs → sign out.
