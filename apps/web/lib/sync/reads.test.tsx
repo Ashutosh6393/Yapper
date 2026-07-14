@@ -109,3 +109,32 @@ describe("useNoteDetail — flag-gated adapter", () => {
     await waitFor(() => expect(result.current.note?.id).toBe("nd"));
   });
 });
+
+/**
+ * Spec 25d. `useLiveQuery` yields `undefined` **both** while it resolves and when the row genuinely isn't
+ * there, so the old `loading: note === undefined` left a missing note "loading" forever — and the dialog
+ * rendered an editor for it anyway (blank page, live WebSocket, no error). Three states, or the UI cannot
+ * tell the truth about a note that was deleted or revoked out from under it.
+ */
+describe("useNoteDetail — three states (25d)", () => {
+  it("is `loading` before Dexie answers — never `missing` (a flash of 'gone' is a lie)", () => {
+    process.env.NEXT_PUBLIC_SYNC_ENGINE = "1";
+    const { result } = renderHook(() => useNoteDetail("whatever"));
+    expect(result.current.status).toBe("loading");
+  });
+
+  it("is `found` once the row arrives", async () => {
+    process.env.NEXT_PUBLIC_SYNC_ENGINE = "1";
+    await db.notes.put(localNote({ id: "here" }));
+    const { result } = renderHook(() => useNoteDetail("here"));
+    await waitFor(() => expect(result.current.status).toBe("found"));
+    expect(result.current.note?.id).toBe("here");
+  });
+
+  it("settles on `missing` for a note that isn't there — deleted, or made private while offline", async () => {
+    process.env.NEXT_PUBLIC_SYNC_ENGINE = "1";
+    const { result } = renderHook(() => useNoteDetail("gone"));
+    await waitFor(() => expect(result.current.status).toBe("missing"));
+    expect(result.current.note).toBeUndefined();
+  });
+});

@@ -1,8 +1,21 @@
-# Lint, format, and organize imports across the whole repo with Biome.
-# `--write` applies all safe fixes in place; the command still exits non-zero
-# (aborting the commit) if any unfixable lint error remains.
-bunx biome check --write .
+#!/bin/sh
+set -eu
 
-# Re-stage the files Biome just fixed so the formatted result is part of the commit.
-# `-u` only touches already-tracked files (won't add new untracked ones).
-git add -u
+# Biome's official git-hooks recipe (https://biomejs.dev/recipes/git-hooks/).
+#
+# `--staged` does NOT ignore *unstaged* changes to a staged file, so a file that is both staged and
+# dirty would get its working-tree version formatted and re-staged — silently committing edits you
+# didn't stage. Refuse the commit instead of guessing which version you meant.
+if git status --short | grep --quiet '^MM'; then
+  printf '%s\n' "ERROR: Some staged files have unstaged changes" >&2
+  exit 1
+fi
+
+# Format + lint + organize imports, over the staged files only. `set -eu` means an unfixable lint error
+# aborts the commit.
+bunx biome check --write --staged --files-ignore-unknown=true --no-errors-on-unmatched
+
+# Re-apply Biome's fixes to paths **already in the index**. Not `git add -u`, which re-stages every dirty
+# tracked file in the repo — sweeping unrelated work-in-progress into whatever you happened to be
+# committing.
+git update-index --again

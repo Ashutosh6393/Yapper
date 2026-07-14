@@ -5,7 +5,11 @@ import { afterEach, expect, it, vi } from "vitest";
 
 // Mock every side-effecting collaborator so the rollback wiring is exercised in isolation:
 // the network (apiFetch), the toast seam, and the backoff scheduler (no real timers here).
-vi.mock("../http", () => ({ apiFetch: vi.fn() }));
+// `ApiError` stays real — the pusher reads its `status` to tell a 401 apart from a drop (spec 25b).
+vi.mock("../http", async (importActual) => ({
+  ...(await importActual<typeof import("../http")>()),
+  apiFetch: vi.fn(),
+}));
 vi.mock("@/components/ui/sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("./backoff", () => ({
   scheduleRetry: vi.fn(),

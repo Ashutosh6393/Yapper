@@ -8,6 +8,13 @@ describe("classifyPushOutcome", () => {
     expect(classifyPushOutcome(new PushTransportError("503", 503)).kind).toBe("transient");
   });
 
+  // Spec 25b / ADR-003. A 401 is neither transient nor a permanent per-mutation rejection: the queue is
+  // fine, the *session* is dead. Retrying cannot fix it — waiting fixes offline, not an expired token —
+  // so it must not fall into the no-max-attempts transient loop that silently stops saving.
+  it("classifies a 401 as auth, not transient (an expired session is not a network blip)", () => {
+    expect(classifyPushOutcome(new PushTransportError("401", 401)).kind).toBe("auth");
+  });
+
   it("splits a settled 200 body into only its rejected verdicts (seq + reason), dropping applied", () => {
     const res: PushResponse = {
       lastMutationID: 3,
