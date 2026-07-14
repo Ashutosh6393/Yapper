@@ -1,18 +1,22 @@
 import { type PushResponse, pushResponseSchema } from "@yapper/schemas";
 import { toast } from "@/components/ui/sonner";
-import { apiFetch } from "../http";
+import { ApiError, apiFetch } from "../http";
+import { useAuthStore } from "../stores/auth";
 import { resetBackoff, scheduleRetry } from "./backoff";
 import { classifyPushOutcome, PushTransportError } from "./classify";
 import { db, getClientGroupID, rebuild } from "./db";
 import { rejectToastCopy } from "./reject-copy";
 
 /**
- * The pusher (spec 19, ADR-0007) with rollback UX (spec 21, ADR-0009): drains the pending
- * `db.mutations` queue to `POST /api/sync/push` and reacts to the outcome. **Single in-flight** — a nudge
- * during a push coalesces into one follow-up run.
+ * The pusher (spec 19, ADR-0007) with rollback UX (spec 21, ADR-0009) and session-expiry handling
+ * (spec 25b, ADR-003): drains the pending `db.mutations` queue to `POST /api/sync/push` and reacts to the
+ * outcome. **Single in-flight** — a nudge during a push coalesces into one follow-up run.
  *
- * - **Transient** (offline / timeout / non-2xx incl. 401/429/5xx / malformed body): keep the whole queue,
+ * - **Transient** (offline / timeout / non-2xx incl. 429/5xx / malformed body): keep the whole queue,
  *   schedule a backoff retry, and stay **silent** — never advance `lastMutationID`, never toast.
+ * - **Auth** (`401`): keep the whole queue, **pause** (no retry — waiting cannot mint a new session), and
+ *   flag the session expired so the UI can prompt re-auth. Never `signOut()`: the queue is the user's
+ *   unsaved writing, keyed to this user.
  * - **Settled**: reset backoff, then for each **permanently-rejected** mutation drop its `seq`,
  *   `rebuild()` to revert the optimistic effect (the UI reverts via `useLiveQuery`), and
  *   `toast.error(rejectToastCopy(name, reason))`. **Applied** seqs stay queued and are dropped later by
@@ -44,6 +48,10 @@ export async function push(): Promise<void> {
 }
 
 async function pushOnce(): Promise<void> {
+  // Paused on an expired session: every push would just 401 again. The queue stays put and drains after
+  // re-auth (an OAuth redirect reloads the app → the flag clears → the bootstrap's schedulePush runs).
+  if (useAuthStore.getState().expired) return;
+
   const pending = await db.mutations.orderBy("seq").toArray();
   if (pending.length === 0) return;
   const clientGroupID = await getClientGroupID();
@@ -58,11 +66,21 @@ async function pushOnce(): Promise<void> {
       await apiFetch("/api/sync/push", { method: "POST", body: JSON.stringify(body) }),
     );
   } catch (err) {
-    // Non-2xx / offline / timeout / malformed 200 body — all transient (a retry is idempotent, Goal 5).
-    result = err instanceof PushTransportError ? err : new PushTransportError(String(err));
+    // Offline / timeout / malformed 200 body → transient (a retry is idempotent, Goal 5). A non-2xx
+    // arrives as ApiError: carry its **status** across, or a 401 is indistinguishable from a network drop
+    // and falls into the infinite transient retry (ADR-003).
+    if (err instanceof PushTransportError) result = err;
+    else if (err instanceof ApiError) result = new PushTransportError(err.message, err.status);
+    else result = new PushTransportError(String(err));
   }
 
   const outcome = classifyPushOutcome(result);
+  if (outcome.kind === "auth") {
+    // Session dead, queue alive. Pause — deliberately no scheduleRetry: waiting cannot fix this, and
+    // retrying a dead credential just 401-storms the API.
+    useAuthStore.getState().markExpired();
+    return;
+  }
   if (outcome.kind === "transient") {
     // Keep the whole queue; re-push the batch with backoff. Silence — no toast (ADR-0009).
     scheduleRetry(() => {

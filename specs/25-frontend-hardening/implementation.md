@@ -1,6 +1,6 @@
 # 25 · Frontend Hardening — Implementation
 
-## Status: not started
+## Status: in-progress
 
 Branch: `feat/frontend-hardening` (cut from `main`)
 
@@ -16,14 +16,34 @@ Ordered so each merges standalone. **25b is the only urgent one** (real data los
       `401`/`403`/`404` → silent; `500` → reports; `ZodError` → reports.
       `lib/http.ts` must not change.
 
-- [ ] **25b — the `401` path** ⚠️ *data loss* (`lib/sync/classify.ts` + test, `lib/sync/push.ts`,
-      `lib/sync/backoff.ts`, a `lib/stores/` auth flag, the re-auth banner)
-      Goal-state test **first**: `classifyPushOutcome` returns `{ kind: "auth" }` for a
-      `PushTransportError` with `status: 401` (today it returns `transient` and retries forever).
-      Then: pause the pusher on `auth` (**no** `scheduleRetry` — waiting cannot fix an expired session),
-      keep the queue intact in Dexie, raise *"Your session expired — sign in to keep saving"*, and on
-      successful re-auth resume + `resetBackoff()` + drain.
-      **Never `signOut()`** — the queue is keyed to that user.
+- [x] **25b — the `401` path** ⚠️ *data loss* (`lib/stores/auth.ts`, `lib/sync/classify.ts` + test,
+      `lib/sync/push.ts` + test, `lib/sync/push.rollback.test.ts`,
+      `components/session-expired-banner.tsx`, `app/providers.tsx`)
+
+      Test-first, red confirmed: `classifyPushOutcome(new PushTransportError("401", 401))` returned
+      `"transient"`, and the pusher's goal-state test couldn't even load. Then:
+      - `PushOutcome` gains `{ kind: "auth" }`; `classify` returns it for `status === 401`.
+      - **A second bug surfaced while implementing.** `push.ts` wrapped the caught error with
+        `new PushTransportError(String(err))` — **discarding the status**. So an `ApiError(401)` reached
+        `classify` as a statusless transport error and *no* `classify` fix could ever have seen it. The
+        pusher now carries `err.status` across when the error is an `ApiError`. Without this the rest of
+        25b is dead code.
+      - `auth` → `useAuthStore.markExpired()` and **return without `scheduleRetry`**; `pushOnce` early-
+        returns while expired, so nudges can't 401-storm. The queue is never touched, `signOut()` is
+        never called.
+      - `SessionExpiredBanner` (app-wide, in `providers.tsx`): *"Your session expired — sign in to keep
+        saving. Your changes are safe on this device."* + a **Sign in** button → `/login?returnTo=`.
+
+      **Resume needed no code.** Re-auth is an OAuth full-page redirect, so returning signed-in reloads
+      the app: the in-memory flag resets and `SyncEngineBootstrap`'s existing `schedulePush()` drains the
+      queue. Reused the `/login?returnTo=` flow rather than duplicating provider buttons in the banner.
+
+      Also fixed: both push suites mocked `../http` wholesale (`vi.mock("../http", () => ({ apiFetch }))`),
+      which made the real `ApiError` class `undefined` at runtime. They now spread `importActual`.
+
+      Verified: full `apps/web` suite **168 tests / 37 files green**; `tsc --noEmit` clean.
+      Still to check in a browser: expire the session cookie → type → banner appears, queue survives a
+      reload, sign-in drains it.
 
 - [ ] **25c — error surfaces** (`components/error-boundary.tsx` + test, `lib/is-chunk-error.ts` + test,
       `app/global-error.tsx`, `app/error.tsx`, `components/dashboard/note-dialog.tsx`,
