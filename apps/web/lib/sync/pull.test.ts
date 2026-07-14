@@ -5,8 +5,12 @@ import { afterEach, expect, it, vi } from "vitest";
 
 // Mock the HTTP layer so the puller hits no network; we drive the server response per test.
 vi.mock("../http", () => ({ apiFetch: vi.fn() }));
+// Spec 26d: a wire field the client's schema doesn't know is *silently stripped* by Zod — the funnel is
+// where that stops being silent.
+vi.mock("../report-error", () => ({ reportError: vi.fn() }));
 
 import { apiFetch } from "../http";
+import { reportError } from "../report-error";
 import { db } from "./db";
 // Register the client-mutator bodies so rebuild() folds any queued mutations.
 import "./mutators";
@@ -132,4 +136,35 @@ it("sends the stored cookie on the next pull and is a no-op-safe on a transient 
   await pull();
   const body = JSON.parse(vi.mocked(apiFetch).mock.calls.at(-1)?.[1]?.body as string);
   expect(body.cookie).toBe("7");
+});
+
+// Spec 26d / ADR-006 — the client was stripping `shareToken` out of every pull response: the server sent
+// it, Zod discarded it, and the Copy-link button just quietly stopped existing. No throw, no warning, no
+// failing test. The fix is not strict schemas (that turns a silent-drop bug into a hard outage when the
+// server adds a field first) — it is simply not being silent.
+it("reports wire fields the schema discarded (dev only)", async () => {
+  // `shareToken` is a field this client *does* know (spec 16 added it as optional) — the ones a client
+  // behind the server doesn't, like these, are the ones that vanish without a sound.
+  vi.mocked(apiFetch).mockResolvedValue({
+    puts: [{ ...meta("n1"), shareToken: "tok_123", pinnedAt: "2026-07-14T00:00:00.000Z" }],
+    dels: [],
+    lastMutationID: 0,
+    cookie: "1",
+    somethingNew: true,
+  });
+
+  await pull();
+
+  expect(reportError).toHaveBeenCalledTimes(1);
+  const [err] = vi.mocked(reportError).mock.calls[0] ?? [];
+  expect(String(err)).toContain("somethingNew");
+  expect(String(err)).toContain("puts[0].pinnedAt");
+});
+
+it("stays quiet when the payload carries nothing the schema doesn't know", async () => {
+  mockPull({ puts: [meta("n1")] });
+
+  await pull();
+
+  expect(reportError).not.toHaveBeenCalled();
 });

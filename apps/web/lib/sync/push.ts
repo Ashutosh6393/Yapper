@@ -8,6 +8,7 @@ import { useSyncStore } from "../stores/sync";
 import { resetBackoff, scheduleRetry } from "./backoff";
 import { classifyPushOutcome, PushTransportError } from "./classify";
 import { db, getClientGroupID, rebuild } from "./db";
+import { pull } from "./pull";
 import { rejectToastCopy } from "./reject-copy";
 
 /**
@@ -110,6 +111,12 @@ async function pushOnce(): Promise<void> {
 
   // Settled: the network is healthy → reset the backoff counter.
   resetBackoff();
+  // A settled outcome *is* the server's confirmation that the mutations landed — so pull the server's
+  // truth down now instead of waiting to be told by a Redis fanout designed to notify *other people*
+  // (spec 26e). Server-minted fields the client cannot fabricate (the share token above all) only ever
+  // arrive on a pull; without this the owner's own Copy-link button lags the poke — and never appears at
+  // all with REDIS_URL unset. Fire-and-forget: the pull owns its own failure handling.
+  void pull();
   if (outcome.rejected.length > 0) {
     const nameBySeq = new Map(pending.map((m) => [m.seq, m.name]));
     await db.mutations.bulkDelete(outcome.rejected.map((r) => r.seq));

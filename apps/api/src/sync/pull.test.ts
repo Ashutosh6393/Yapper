@@ -1,6 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import { db, note, noteCollaborator, syncClient, syncCvr, user } from "@yapper/db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import supertest from "supertest";
 import { buildApp } from "../app";
 
@@ -68,10 +68,12 @@ test("first pull (cookie null) returns the whole view in puts, empty dels, reset
   expect(typeof res.body.cookie).toBe("string");
 
   // A CVR row was stored for the freshly issued cookie with the note's metaVersion.
+  // Cookies are monotonic *per client group* (cvr.ts `nextCookie`), so `cookie` alone is not a key —
+  // every group has a row at cookie 1. Scope the lookup to this test's group.
   const [row] = await db
     .select({ snapshot: syncCvr.snapshot })
     .from(syncCvr)
-    .where(eq(syncCvr.cookie, Number(res.body.cookie)));
+    .where(and(eq(syncCvr.clientGroupId, group), eq(syncCvr.cookie, Number(res.body.cookie))));
   expect(row?.snapshot[n.id]).toBe(1);
 }, 30_000);
 

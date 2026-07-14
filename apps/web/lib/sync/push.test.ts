@@ -9,6 +9,9 @@ vi.mock("../http", async (importActual) => ({
   apiFetch: vi.fn(),
 }));
 
+// Spec 26e: a settled push must pull the server's truth down itself, rather than waiting on the SSE poke.
+vi.mock("./pull", () => ({ pull: vi.fn() }));
+
 // Spec 26c asserts the pusher schedules *no* retry on a blocked outcome — so the scheduler is a spy.
 vi.mock("./backoff", async (importActual) => ({
   ...(await importActual<typeof import("./backoff")>()),
@@ -22,6 +25,7 @@ import { cancelScheduledRetry, resetBackoff, scheduleRetry } from "./backoff";
 import { db, rebuild } from "./db";
 // Register the client-mutator bodies so rebuild() folds the queued createNote.
 import "./mutators";
+import { pull } from "./pull";
 import { push } from "./push";
 
 afterEach(async () => {
@@ -118,4 +122,24 @@ it("leaves applied seqs queued (dropped later by the pull loop)", async () => {
   await push();
 
   expect(await db.mutations.get(seq)).toBeDefined(); // applied but NOT dropped by the pusher
+});
+
+// Spec 26e. The share token is minted server-side and cannot be faked optimistically, so on the engine
+// path the owner's own Copy-link button only appears after a pull — and the only thing that triggered one
+// was the SSE poke: a Redis fanout built to notify *other* people, plus a 300ms coalesce, and a no-op
+// entirely when REDIS_URL is unset. A settled push already IS the server's confirmation.
+it("pulls the server's truth down after a settled push (and not after a transient one)", async () => {
+  const id = crypto.randomUUID();
+  const seq = await db.mutations.add({ name: "createNote", args: { id } });
+  vi.mocked(apiFetch).mockResolvedValue({
+    lastMutationID: seq,
+    verdicts: [{ seq, status: "applied" }],
+  });
+
+  await push();
+  expect(pull).toHaveBeenCalledTimes(1);
+
+  vi.mocked(apiFetch).mockRejectedValue(new Error("offline"));
+  await push();
+  expect(pull).toHaveBeenCalledTimes(1); // still 1 — a transient failure confirms nothing
 });

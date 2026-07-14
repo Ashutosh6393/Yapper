@@ -1,6 +1,6 @@
 # 26 · Sync Identity — Implementation
 
-## Status: not started
+## Status: complete (26a–26e)
 
 Branch: `feat/sync-identity` (cut from `feat/frontend-hardening`)
 
@@ -42,14 +42,14 @@ Re-minting the `clientGroupID` drained the queue immediately (push `200`, `lastM
       Goal-state test: a seeded Dexie is empty after sign-out; a non-empty queue prompts rather than
       silently discarding (ADR-002).
 
-- [ ] **26b — identity** (`apps/web/lib/sync/db.ts`, `apps/api/src/sync/pull.ts` + test)
+- [x] **26b — identity** (`apps/web/lib/sync/db.ts`, `apps/api/src/sync/pull.ts` + test)
       `getClientGroupID(userId)` persists the minting user and re-mints on mismatch — defence in depth for
       when 26a's wipe didn't happen (crash, force-quit, failed delete).
       `handlePull` enforces the same binding `handlePush` already does: **a half-working app is harder to
       debug than a broken one** (ADR-004), and this asymmetry is exactly why the bug hid.
       Goal-state test: a different `userId` re-mints; `POST /pull` `403`s on a foreign client group.
 
-- [ ] **26c — blocked pushes** (`apps/web/lib/sync/classify.ts` + test, `push.ts`, a banner)
+- [x] **26c — blocked pushes** (`apps/web/lib/sync/classify.ts` + test, `push.ts`, a banner)
       `PushOutcome` gains `{ kind: "blocked"; status }`. The pusher **stops** (no `scheduleRetry` — waiting
       cannot fix a `403`), keeps the queue, `reportError`s (a client/server disagreement is always a bug),
       and tells the user their changes are not saving.
@@ -58,13 +58,13 @@ Re-minting the `clientGroupID` drained the queue immediately (push `200`, `lastM
       Goal-state test: `classify` → `blocked` for `403`; the pusher schedules no retry and preserves the
       queue.
 
-- [ ] **26d — drift visibility** (`apps/web/lib/sync/pull.ts` + test)
+- [x] **26d — drift visibility** (`apps/web/lib/sync/pull.ts` + test)
       Dev-only: diff the raw pull payload's keys against the parsed result; report what Zod discarded.
       **Not** `z.strictObject` — that would forbid the server adding a field before every client updates,
       turning a silent-drop bug into a hard-outage bug (ADR-006).
       Goal-state test: a payload with an unknown key reports; a clean one doesn't.
 
-- [ ] **26e — pull immediately after a settled push** (`apps/web/lib/sync/push.ts` + test)
+- [x] **26e — pull immediately after a settled push** (`apps/web/lib/sync/push.ts` + test)
       Two lines: `void pull()` on a `settled` outcome.
       Reported by the user after the queue was unjammed: *"the copy button does show up but after
       sometime, not instantly."* The token is server-minted and cannot be faked optimistically, so on the
